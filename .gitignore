@@ -43,3 +43,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+test/
+functions/usta-kapinda-e9ea7-d5f08f0fbe38.json
