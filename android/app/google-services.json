@@ -1,0 +1,63 @@
+{
+  "project_info": {
+    "project_number": "857244787940",
+    "project_id": "usta-kapinda-e9ea7",
+    "storage_bucket": "usta-kapinda-e9ea7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:857244787940:android:c1a67eaafa214c2cb5b8f1",
+        "android_client_info": {
+          "package_name": "com.ustakapinda.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "857244787940-0v5aa2hbu01hdkjt80nt0jt6bn4u5jvo.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.ustakapinda.app",
+            "certificate_hash": "1ec6f8088e04bc519d0b40389dde7d67d9584847"
+          }
+        },
+        {
+          "client_id": "857244787940-e7juobr8ulepqejfitaaan6rkt3abhqd.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.ustakapinda.app",
+            "certificate_hash": "7b683b5ee30634ef2c41710bc7fa3104edfa82a2"
+          }
+        },
+        {
+          "client_id": "857244787940-s4plh0pjk3f41o54ga9mk2een2oq6etl.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.ustakapinda.app",
+            "certificate_hash": "7a53f678a37819176b2b4acced4f6342b610c098"
+          }
+        },
+        {
+          "client_id": "857244787940-voisdb8md8jja2jkpmun6bis8phr8n41.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBzQ2sx8uZokraFxLdiKD3R1_BARKehoPw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "857244787940-voisdb8md8jja2jkpmun6bis8phr8n41.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
