@@ -9,6 +9,10 @@ workflows:
       xcode: latest
       cocoapods: default
 
+      vars:
+        XCODE_WORKSPACE: "Runner.xcworkspace"
+        XCODE_SCHEME: "Runner"
+
     scripts:
       - name: Get Flutter packages
         script: |
