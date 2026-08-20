@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>857244787940-23024ujv0p8u4guejdp39j0gvql69ui0.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.857244787940-23024ujv0p8u4guejdp39j0gvql69ui0</string>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>857244787940-0v5aa2hbu01hdkjt80nt0jt6bn4u5jvo.apps.googleusercontent.com</string>
+	<key>API_KEY</key>
+	<string>AIzaSyBeR0HtO7H_5-DRXMnBpIpqTifttMougN4</string>
+	<key>GCM_SENDER_ID</key>
+	<string>857244787940</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.ustakapinda.ustaKapinda</string>
+	<key>PROJECT_ID</key>
+	<string>usta-kapinda-e9ea7</string>
+	<key>STORAGE_BUCKET</key>
+	<string>usta-kapinda-e9ea7.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:857244787940:ios:c9c47df79b7cbb35b5b8f1</string>
+</dict>
+</plist>
