@@ -3,10 +3,16 @@ workflows:
     name: Usta Kapinda iOS Release
     max_build_duration: 120
     instance_type: mac_mini_m2
+    integrations:
+      # Create this Apple Developer Portal integration in Codemagic with the same name.
+      app_store_connect: codemagic
 
     environment:
       flutter: stable
       xcode: latest
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.ustakapinda.ustaKapinda
       vars:
         # Codemagic starts in the repository root; the iOS workspace is below ios/.
         XCODE_WORKSPACE: "ios/Runner.xcworkspace"
@@ -23,7 +29,7 @@ workflows:
 
       - name: Build iOS IPA
         script: |
-          flutter build ipa --release
+          flutter build ipa --release --export-options-plist=/Users/builder/export_options.plist
 
     artifacts:
       - build/ios/ipa/*.ipa
