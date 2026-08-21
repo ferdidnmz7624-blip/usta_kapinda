@@ -12,7 +12,7 @@ workflows:
       xcode: latest
       ios_signing:
         distribution_type: app_store
-        bundle_identifier: com.ustakapinda.ustaKapinda
+        bundle_identifier: com.ustakapinda.app
       vars:
         # Codemagic starts in the repository root; the iOS workspace is below ios/.
         XCODE_WORKSPACE: "ios/Runner.xcworkspace"
