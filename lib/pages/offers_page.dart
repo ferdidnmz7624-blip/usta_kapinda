@@ -3,17 +3,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../models/offer_model.dart';
-import '../models/user_model.dart';
 
 import '../services/chat_service.dart';
 import '../services/notification_service.dart';
 import '../services/offer_service.dart';
-import '../services/user_service.dart';
 
 import 'chat_page.dart';
 import 'review_page.dart';
-
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../generated/app_localizations.dart';
 
@@ -27,7 +23,6 @@ State<OffersPage> createState() => _OffersPageState();
 class _OffersPageState extends State<OffersPage> {
 final OfferService _offerService = OfferService();
 final ChatService _chatService = ChatService();
-final UserService _userService = UserService();
 final NotificationService _notificationService =
 NotificationService();
 

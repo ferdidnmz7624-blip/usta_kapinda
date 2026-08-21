@@ -76,7 +76,7 @@ class _CraftsmanReviewPageState extends State<CraftsmanReviewPage> {
               "Değerlendirme kaydedilemedi. Lütfen tekrar deneyin.",
             ),
           ),
-        ),
+        );
       }
     } finally {
       if (mounted) setState(() => _loading = false);
