@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -39,94 +40,11 @@ Future<void> firebaseMessagingBackgroundHandler(
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // StoreKit 1, Apple'ın sunucuda doğrulanabilen makbuz verisini sağlar.
-  // Bu çağrı, satın alma eklentisi ilk kez kullanılmadan önce yapılmalıdır.
-  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
-    try {
-      await InAppPurchaseStoreKitPlatform.enableStoreKit1();
-    } catch (error, stackTrace) {
-      // Satın alma eklentisindeki bir başlatma sorunu uygulamanın açılmasını
-      // engellememelidir. Satın alma sayfası hata mesajını ayrıca gösterebilir.
-      debugPrint('StoreKit başlatılamadı: $error');
-      debugPrintStack(stackTrace: stackTrace);
-    }
-  }
-
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  await FirebaseAppCheck.instance.activate(
-    androidProvider: AndroidProvider.playIntegrity,
-  );
   FirebaseMessaging.onBackgroundMessage(
       firebaseMessagingBackgroundHandler);
-
-  await FirebaseMessaging.instance.requestPermission(
-    alert: true,
-    badge: true,
-    sound: true,
-  );
-
-  const AndroidInitializationSettings androidSettings =
-  AndroidInitializationSettings('@mipmap/ic_launcher');
-
-  const InitializationSettings settings =
-  InitializationSettings(
-    android: androidSettings,
-  );
-
-  await flutterLocalNotificationsPlugin.initialize(settings);
-  const AndroidNotificationChannel channel = AndroidNotificationChannel(
-    'messages',
-    'Mesaj Bildirimleri',
-    description: 'Yeni mesaj bildirimleri',
-    importance: Importance.max,
-  );
-
-  await flutterLocalNotificationsPlugin
-      .resolvePlatformSpecificImplementation<
-      AndroidFlutterLocalNotificationsPlugin>()
-      ?.createNotificationChannel(channel);
-
-  FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-    RemoteNotification? notification = message.notification;
-
-    if (notification != null) {
-      flutterLocalNotificationsPlugin.show(
-        notification.hashCode,
-        notification.title,
-        notification.body,
-        const NotificationDetails(
-          android: AndroidNotificationDetails(
-            'messages',
-            'Mesaj Bildirimleri',
-            channelDescription: 'Yeni mesaj bildirimleri',
-            importance: Importance.max,
-            priority: Priority.high,
-          ),
-        ),
-      );
-    }
-  });
-  final token = await FirebaseMessaging.instance.getToken();
-
-  print("=====================================");
-  print("FCM TOKEN: $token");
-  print("=====================================");
-  final user = FirebaseAuth.instance.currentUser;
-
-  if (user != null) {
-    await UserService().saveFcmToken(
-      user.uid,
-      token!,
-    );
-
-    print("FCM TOKEN FIRESTORE'A KAYDEDİLDİ");
-  }
-  FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
-    debugPrint("YENİ FCM TOKEN: $newToken");
-  });
-  await initializeDateFormatting('tr_TR');
 
   runApp(
     ChangeNotifierProvider(
@@ -134,6 +52,103 @@ void main() async {
       child: const UstaKapindaApp(),
     ),
   );
+
+  // Bildirim ve App Check işlemleri uygulamanın açılmasını bekletmez.
+  // Bir iOS izin veya APNs sorunu olsa bile kullanıcı giriş ekranını görür.
+  unawaited(_initializeOptionalServices());
+}
+
+Future<void> _initializeOptionalServices() async {
+  try {
+    await initializeDateFormatting('tr_TR');
+  } catch (error, stackTrace) {
+    debugPrint('Tarih biçimi başlatılamadı: $error');
+    debugPrintStack(stackTrace: stackTrace);
+  }
+
+  // StoreKit 1, Apple'ın sunucuda doğrulanabilen makbuz verisini sağlar.
+  // Satın alma eklentisi açılmadan önce çalışır, ancak uygulamanın açılışını
+  // hiçbir koşulda bekletmez.
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+    try {
+      await InAppPurchaseStoreKitPlatform.enableStoreKit1();
+    } catch (error, stackTrace) {
+      debugPrint('StoreKit başlatılamadı: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+  }
+
+  try {
+    await FirebaseAppCheck.instance.activate(
+      androidProvider: AndroidProvider.playIntegrity,
+    );
+  } catch (error, stackTrace) {
+    debugPrint('App Check başlatılamadı: $error');
+    debugPrintStack(stackTrace: stackTrace);
+  }
+
+  try {
+    await FirebaseMessaging.instance.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    const AndroidInitializationSettings androidSettings =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+
+    const InitializationSettings settings = InitializationSettings(
+      android: androidSettings,
+    );
+
+    await flutterLocalNotificationsPlugin.initialize(settings);
+    const AndroidNotificationChannel channel = AndroidNotificationChannel(
+      'messages',
+      'Mesaj Bildirimleri',
+      description: 'Yeni mesaj bildirimleri',
+      importance: Importance.max,
+    );
+
+    await flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(channel);
+
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      final notification = message.notification;
+
+      if (notification != null) {
+        flutterLocalNotificationsPlugin.show(
+          notification.hashCode,
+          notification.title,
+          notification.body,
+          const NotificationDetails(
+            android: AndroidNotificationDetails(
+              'messages',
+              'Mesaj Bildirimleri',
+              channelDescription: 'Yeni mesaj bildirimleri',
+              importance: Importance.max,
+              priority: Priority.high,
+            ),
+          ),
+        );
+      }
+    });
+    final token = await FirebaseMessaging.instance.getToken();
+
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user != null && token != null) {
+      await UserService().saveFcmToken(user.uid, token);
+    }
+
+    FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
+      debugPrint('Yeni FCM tokenı alındı.');
+    });
+  } catch (error, stackTrace) {
+    debugPrint('Bildirim servisi başlatılamadı: $error');
+    debugPrintStack(stackTrace: stackTrace);
+  }
 }
 
 class UstaKapindaApp extends StatelessWidget {
