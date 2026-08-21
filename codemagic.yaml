@@ -22,6 +22,10 @@ workflows:
         script: |
           flutter pub get
 
+      - name: Generate iOS app icon
+        script: |
+          dart run flutter_launcher_icons
+
       - name: Set up iOS code signing
         script: |
           xcode-project use-profiles --project ios/Runner.xcodeproj

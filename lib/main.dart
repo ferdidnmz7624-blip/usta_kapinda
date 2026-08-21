@@ -42,7 +42,14 @@ void main() async {
   // StoreKit 1, Apple'ın sunucuda doğrulanabilen makbuz verisini sağlar.
   // Bu çağrı, satın alma eklentisi ilk kez kullanılmadan önce yapılmalıdır.
   if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
-    await InAppPurchaseStoreKitPlatform.enableStoreKit1();
+    try {
+      await InAppPurchaseStoreKitPlatform.enableStoreKit1();
+    } catch (error, stackTrace) {
+      // Satın alma eklentisindeki bir başlatma sorunu uygulamanın açılmasını
+      // engellememelidir. Satın alma sayfası hata mesajını ayrıca gösterebilir.
+      debugPrint('StoreKit başlatılamadı: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
   }
 
   await Firebase.initializeApp(

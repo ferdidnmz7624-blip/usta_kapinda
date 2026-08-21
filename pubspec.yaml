@@ -2,7 +2,7 @@ name: usta_kapinda
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.0.0+13
+version: 1.0.0+14
 
 environment:
   sdk: ^3.12.2
@@ -60,8 +60,8 @@ flutter:
     - assets/images/
 
 flutter_launcher_icons:
-  android: true
-  ios: false
+  android: false
+  ios: true
   image_path: assets/icons/app_icon.png
   adaptive_icon_foreground: assets/icons/app_icon.png
   adaptive_icon_background: "#FFFFFF"
