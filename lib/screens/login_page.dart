@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import '../services/user_service.dart';
 import '../services/google_auth_service.dart';
+import '../services/apple_auth_service.dart';
 import 'navigation_page.dart';
 import 'mode_router_page.dart';
 import 'dart:convert';
@@ -47,6 +48,7 @@ final FirebaseAuth _auth = FirebaseAuth.instance;
 final emailController = TextEditingController();
 final passwordController = TextEditingController();
 final GoogleAuthService _googleAuth = GoogleAuthService();
+final AppleAuthService _appleAuth = AppleAuthService();
 bool isLoading = false;
 bool obscurePassword = true;
 bool rememberMe = true;
@@ -725,8 +727,35 @@ borderRadius: BorderRadius.circular(18),
     width: double.infinity,
     height: 56,
     child: OutlinedButton.icon(
-      onPressed: () {
-        // Apple Giriş (daha sonra eklenecek)
+      onPressed: () async {
+        try {
+          final credential = await _appleAuth.signInWithApple();
+
+          if (credential == null) return;
+          final token = await FirebaseMessaging.instance.getToken();
+
+          if (token != null) {
+            await UserService().saveFcmToken(
+              FirebaseAuth.instance.currentUser!.uid,
+              token,
+            );
+          }
+          if (!mounted) return;
+
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const ModeRouterPage(),
+            ),
+          );
+        } catch (e) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(e.toString()),
+            ),
+          );
+        }
       },
       icon: const Icon(
         Icons.apple,
