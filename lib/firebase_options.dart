@@ -53,7 +53,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyBzQ2sx8uZokraFxLdiKD3R1_BARKehoPw',
-    appId: '1:857244787940:android:99ae99bb19cdb6c9b5b8f1',
+    appId: '1:857244787940:android:c1a67eaafa214c2cb5b8f1',
     messagingSenderId: '857244787940',
     projectId: 'usta-kapinda-e9ea7',
     storageBucket: 'usta-kapinda-e9ea7.firebasestorage.app',

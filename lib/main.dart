@@ -24,27 +24,23 @@ import 'screens/terms_page.dart';
 import 'screens/privacy_page.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:in_app_purchase_storekit/in_app_purchase_storekit.dart';
+
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-FlutterLocalNotificationsPlugin();
+    FlutterLocalNotificationsPlugin();
 
 @pragma('vm:entry-point')
-Future<void> firebaseMessagingBackgroundHandler(
-    RemoteMessage message) async {
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await FirebaseAppCheck.instance.activate(
     androidProvider: AndroidProvider.playIntegrity,
   );
 }
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  FirebaseMessaging.onBackgroundMessage(
-      firebaseMessagingBackgroundHandler);
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
   runApp(
     ChangeNotifierProvider(
@@ -94,11 +90,24 @@ Future<void> _initializeOptionalServices() async {
       sound: true,
     );
 
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      await FirebaseMessaging.instance
+          .setForegroundNotificationPresentationOptions(
+            alert: true,
+            badge: true,
+            sound: true,
+          );
+    }
+
     const AndroidInitializationSettings androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
 
+    const DarwinInitializationSettings iosSettings =
+        DarwinInitializationSettings();
+
     const InitializationSettings settings = InitializationSettings(
       android: androidSettings,
+      iOS: iosSettings,
     );
 
     await flutterLocalNotificationsPlugin.initialize(settings);
@@ -111,13 +120,15 @@ Future<void> _initializeOptionalServices() async {
 
     await flutterLocalNotificationsPlugin
         .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
+          AndroidFlutterLocalNotificationsPlugin
+        >()
         ?.createNotificationChannel(channel);
 
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       final notification = message.notification;
 
-      if (notification != null) {
+      if (notification != null &&
+          defaultTargetPlatform == TargetPlatform.android) {
         flutterLocalNotificationsPlugin.show(
           notification.hashCode,
           notification.title,
@@ -142,8 +153,12 @@ Future<void> _initializeOptionalServices() async {
       await UserService().saveFcmToken(user.uid, token);
     }
 
-    FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
+    FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
       debugPrint('Yeni FCM tokenı alındı.');
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await UserService().saveFcmToken(user.uid, newToken);
+      }
     });
   } catch (error, stackTrace) {
     debugPrint('Bildirim servisi başlatılamadı: $error');
@@ -156,125 +171,123 @@ class UstaKapindaApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-return Consumer<LanguageProvider>(
-builder: (context, languageProvider, child) {
-return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: "Usta Kapında",
+    return Consumer<LanguageProvider>(
+      builder: (context, languageProvider, child) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: "Usta Kapında",
 
-locale: languageProvider.locale,
+          locale: languageProvider.locale,
 
-  localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
 
-  supportedLocales: AppLocalizations.supportedLocales,
+          supportedLocales: AppLocalizations.supportedLocales,
 
-  themeMode: languageProvider.themeMode,
+          themeMode: languageProvider.themeMode,
 
-  theme: ThemeData(
-    useMaterial3: true,
-    brightness: Brightness.light,
-    colorSchemeSeed: Colors.blue,
+          theme: ThemeData(
+            useMaterial3: true,
+            brightness: Brightness.light,
+            colorSchemeSeed: Colors.blue,
 
-    scaffoldBackgroundColor: const Color(0xfff4f7fb),
+            scaffoldBackgroundColor: const Color(0xfff4f7fb),
 
-    cardColor: Colors.white,
+            cardColor: Colors.white,
 
-    dividerColor: Colors.grey.shade300,
+            dividerColor: Colors.grey.shade300,
 
-    appBarTheme: const AppBarTheme(
-      centerTitle: true,
-      elevation: 0,
-      backgroundColor: Colors.transparent,
-      foregroundColor: Colors.black,
-    ),
+            appBarTheme: const AppBarTheme(
+              centerTitle: true,
+              elevation: 0,
+              backgroundColor: Colors.transparent,
+              foregroundColor: Colors.black,
+            ),
 
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        elevation: 4,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-        ),
-      ),
-    ),
-
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: Colors.white,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(18),
-        borderSide: BorderSide.none,
-      ),
-    ),
-  ),
-
-  darkTheme: ThemeData(
-    useMaterial3: true,
-    brightness: Brightness.dark,
-    colorSchemeSeed: Colors.blue,
-
-    scaffoldBackgroundColor: const Color(0xff121212),
-
-    cardColor: const Color(0xff1E1E1E),
-
-    dividerColor: Colors.white24,
-
-    appBarTheme: const AppBarTheme(
-      centerTitle: true,
-      elevation: 0,
-      backgroundColor: Colors.transparent,
-      foregroundColor: Colors.white,
-    ),
-
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        elevation: 4,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-        ),
-      ),
-    ),
-
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: const Color(0xff1E1E1E),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(18),
-        borderSide: BorderSide.none,
-      ),
-    ),
-  ),
-      routes: {
-        "/login": (context) => const LoginPage(),
-        // Artık önce hesap türü seçilecek
-        "/kvkk": (context) => const KvkkPage(),
-        "/terms": (context) => const TermsPage(),
-        "/privacy": (context) => const PrivacyPage(),
-        "/register": (context) => const AccountTypePage(),
-
-        "/home": (context) => const ModeRouterPage(),
-        "/jobs": (context) => const JobsPage(),
-        "/job-post": (context) => const JobPostPage(),
-      },
-      home: StreamBuilder<User?>(
-        stream: FirebaseAuth.instance.authStateChanges(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(
-              body: Center(
-                child: CircularProgressIndicator(),
+            elevatedButtonTheme: ElevatedButtonThemeData(
+              style: ElevatedButton.styleFrom(
+                elevation: 4,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
               ),
-            );
-          }
+            ),
 
-          if (snapshot.hasData) {
-            return const ModeRouterPage();
-          }
+            inputDecorationTheme: InputDecorationTheme(
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(18),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
 
-          return const LoginPage();
-        },
-      ),
-);
-},
-);
+          darkTheme: ThemeData(
+            useMaterial3: true,
+            brightness: Brightness.dark,
+            colorSchemeSeed: Colors.blue,
+
+            scaffoldBackgroundColor: const Color(0xff121212),
+
+            cardColor: const Color(0xff1E1E1E),
+
+            dividerColor: Colors.white24,
+
+            appBarTheme: const AppBarTheme(
+              centerTitle: true,
+              elevation: 0,
+              backgroundColor: Colors.transparent,
+              foregroundColor: Colors.white,
+            ),
+
+            elevatedButtonTheme: ElevatedButtonThemeData(
+              style: ElevatedButton.styleFrom(
+                elevation: 4,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
+              ),
+            ),
+
+            inputDecorationTheme: InputDecorationTheme(
+              filled: true,
+              fillColor: const Color(0xff1E1E1E),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(18),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+          routes: {
+            "/login": (context) => const LoginPage(),
+            // Artık önce hesap türü seçilecek
+            "/kvkk": (context) => const KvkkPage(),
+            "/terms": (context) => const TermsPage(),
+            "/privacy": (context) => const PrivacyPage(),
+            "/register": (context) => const AccountTypePage(),
+
+            "/home": (context) => const ModeRouterPage(),
+            "/jobs": (context) => const JobsPage(),
+            "/job-post": (context) => const JobPostPage(),
+          },
+          home: StreamBuilder<User?>(
+            stream: FirebaseAuth.instance.authStateChanges(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
+
+              if (snapshot.hasData) {
+                return const ModeRouterPage();
+              }
+
+              return const LoginPage();
+            },
+          ),
+        );
+      },
+    );
   }
 }

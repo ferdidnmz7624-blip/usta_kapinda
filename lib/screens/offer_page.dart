@@ -9,10 +9,7 @@ import '../generated/app_localizations.dart';
 class OfferPage extends StatefulWidget {
   final JobModel job;
 
-  const OfferPage({
-    super.key,
-    required this.job,
-  });
+  const OfferPage({super.key, required this.job});
 
   @override
   State<OfferPage> createState() => _OfferPageState();
@@ -21,6 +18,7 @@ class OfferPage extends StatefulWidget {
 class _OfferPageState extends State<OfferPage> {
   final OfferService _offerService = OfferService();
 
+  final priceController = TextEditingController();
   final messageController = TextEditingController();
   final daysController = TextEditingController();
 
@@ -28,6 +26,7 @@ class _OfferPageState extends State<OfferPage> {
 
   @override
   void dispose() {
+    priceController.dispose();
     messageController.dispose();
     daysController.dispose();
     super.dispose();
@@ -36,51 +35,45 @@ class _OfferPageState extends State<OfferPage> {
   Future<void> sendOffer() async {
     final l10n = AppLocalizations.of(context)!;
 
-    if (messageController.text.trim().isEmpty ||
+    if (priceController.text.trim().isEmpty ||
+        messageController.text.trim().isEmpty ||
         daysController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.requiredFields)));
+      return;
+    }
+
+    final price = int.tryParse(priceController.text.trim()) ?? 0;
+    final days = int.tryParse(daysController.text.trim()) ?? 0;
+
+    final message = messageController.text.trim();
+
+    if (price < 1000) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(l10n.requiredFields),
-        ),
+        const SnackBar(content: Text('Teklif tutarı en az 1.000 ₺ olmalıdır.')),
       );
       return;
     }
 
-    final days =
-        int.tryParse(daysController.text.trim()) ?? 0;
-
-    final message = messageController.text.trim();
-
     if (days < 1 || days > 100) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            l10n.estimatedDurationRange,
-          ),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.estimatedDurationRange)));
       return;
     }
 
     if (message.length < 20) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            l10n.offerMessageMin,
-          ),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.offerMessageMin)));
       return;
     }
 
     if (message.length > 200) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            l10n.offerMessageMax,
-          ),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.offerMessageMax)));
       return;
     }
 
@@ -95,8 +88,7 @@ class _OfferPageState extends State<OfferPage> {
         throw Exception(l10n.loginRequired);
       }
 
-      final alreadyOffered =
-      await _offerService.hasAlreadyOffered(
+      final alreadyOffered = await _offerService.hasAlreadyOffered(
         jobId: widget.job.id,
         craftsmanId: user.uid,
       );
@@ -104,13 +96,9 @@ class _OfferPageState extends State<OfferPage> {
       if (alreadyOffered) {
         if (!mounted) return;
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              l10n.alreadyOffered,
-            ),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.alreadyOffered)));
 
         return;
       }
@@ -119,19 +107,16 @@ class _OfferPageState extends State<OfferPage> {
         region: "europe-west1",
       ).httpsCallable("payOfferWithTokens").call({
         "jobId": widget.job.id,
+        "price": price,
         "message": message,
         "estimatedDays": days,
       });
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            l10n.offerSent,
-          ),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.offerSent)));
 
       Navigator.pop(context);
     } on FirebaseFunctionsException catch (e) {
@@ -147,20 +132,14 @@ class _OfferPageState extends State<OfferPage> {
         errorMessage = l10n.unauthenticated;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMessage),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(errorMessage)));
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            e.message ?? l10n.somethingWentWrong,
-          ),
-        ),
+        SnackBar(content: Text(e.message ?? l10n.somethingWentWrong)),
       );
     } catch (e) {
       if (!mounted) return;
@@ -177,11 +156,9 @@ class _OfferPageState extends State<OfferPage> {
         errorMessage = l10n.unauthenticated;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMessage),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(errorMessage)));
     } finally {
       if (mounted) {
         setState(() {
@@ -196,10 +173,7 @@ class _OfferPageState extends State<OfferPage> {
     final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.makeOffer),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: Text(l10n.makeOffer), centerTitle: true),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -210,8 +184,7 @@ class _OfferPageState extends State<OfferPage> {
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
-                  crossAxisAlignment:
-                  CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       widget.job.title,
@@ -231,21 +204,9 @@ class _OfferPageState extends State<OfferPage> {
                       spacing: 8,
                       runSpacing: 8,
                       children: [
-                        Chip(
-                          label: Text(
-                            widget.job.category,
-                          ),
-                        ),
-                        Chip(
-                          label: Text(
-                            widget.job.city,
-                          ),
-                        ),
-                        Chip(
-                          label: Text(
-                            widget.job.district,
-                          ),
-                        ),
+                        Chip(label: Text(widget.job.category)),
+                        Chip(label: Text(widget.job.city)),
+                        Chip(label: Text(widget.job.district)),
                       ],
                     ),
                   ],
@@ -256,14 +217,24 @@ class _OfferPageState extends State<OfferPage> {
             const SizedBox(height: 25),
 
             TextField(
+              controller: priceController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Teklif tutarı (₺)',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.payments_outlined),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            TextField(
               controller: daysController,
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
                 labelText: l10n.estimatedDuration,
                 border: const OutlineInputBorder(),
-                prefixIcon: const Icon(
-                  Icons.calendar_today,
-                ),
+                prefixIcon: const Icon(Icons.calendar_today),
               ),
             ),
 
@@ -277,9 +248,7 @@ class _OfferPageState extends State<OfferPage> {
                 labelText: l10n.offerMessage,
                 border: const OutlineInputBorder(),
                 alignLabelWithHint: true,
-                prefixIcon: const Icon(
-                  Icons.message,
-                ),
+                prefixIcon: const Icon(Icons.message),
               ),
             ),
 
@@ -288,23 +257,19 @@ class _OfferPageState extends State<OfferPage> {
             SizedBox(
               height: 55,
               child: ElevatedButton.icon(
-                onPressed:
-                isLoading ? null : sendOffer,
+                onPressed: isLoading ? null : sendOffer,
                 icon: isLoading
                     ? const SizedBox(
-                  width: 22,
-                  height: 22,
-                  child:
-                  CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
-                )
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
                     : const Icon(Icons.send),
                 label: Text(
-                  isLoading
-                      ? l10n.sending
-                      : l10n.makeOffer,
+                  isLoading ? l10n.sending : l10n.makeOffer,
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -320,19 +285,11 @@ class _OfferPageState extends State<OfferPage> {
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Row(
-                  crossAxisAlignment:
-                  CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(
-                      Icons.info_outline,
-                      color: Colors.blue,
-                    ),
+                    const Icon(Icons.info_outline, color: Colors.blue),
                     const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        l10n.offerInformation,
-                      ),
-                    ),
+                    Expanded(child: Text(l10n.offerInformation)),
                   ],
                 ),
               ),
