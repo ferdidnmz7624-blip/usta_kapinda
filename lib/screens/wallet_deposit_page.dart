@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
@@ -297,17 +298,28 @@ class _WalletDepositPageState extends State<WalletDepositPage> {
       return;
     }
 
+    var verified = false;
+
     try {
+      final isAppStorePurchase =
+          !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+
       final callable =
       FirebaseFunctions.instanceFor(
         region: "europe-west1",
       ).httpsCallable(
-        "verifyGooglePlayTokenPurchase",
+        isAppStorePurchase
+            ? "verifyAppStoreTokenPurchase"
+            : "verifyGooglePlayTokenPurchase",
       );
 
       final result = await callable.call({
         "productId": purchase.productID,
-        "purchaseToken": purchaseToken,
+        if (isAppStorePurchase) ...{
+          "receiptData": purchaseToken,
+          "transactionId": purchase.purchaseID,
+        } else
+          "purchaseToken": purchaseToken,
       });
 
       final data =
@@ -316,6 +328,7 @@ class _WalletDepositPageState extends State<WalletDepositPage> {
       );
 
       if (data["success"] == true) {
+        verified = true;
         final tokensAdded =
         data["tokensAdded"];
 
@@ -357,7 +370,9 @@ class _WalletDepositPageState extends State<WalletDepositPage> {
         l10n.purchaseNotVerified,
       );
     } finally {
-      if (purchase.pendingCompletePurchase) {
+      // Ödeme yalnızca sunucu doğrulaması başarılıysa tamamlanır. Böylece
+      // bağlantı veya doğrulama hatasında kullanıcı jetonunu kaybetmez.
+      if (verified && purchase.pendingCompletePurchase) {
         await _inAppPurchase.completePurchase(
           purchase,
         );

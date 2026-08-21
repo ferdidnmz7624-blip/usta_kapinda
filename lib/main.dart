@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -21,6 +22,7 @@ import 'screens/kvkk_page.dart';
 import 'screens/terms_page.dart';
 import 'screens/privacy_page.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
+import 'package:in_app_purchase_storekit/in_app_purchase_storekit.dart';
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
 FlutterLocalNotificationsPlugin();
 
@@ -36,6 +38,12 @@ Future<void> firebaseMessagingBackgroundHandler(
 }
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // StoreKit 1, Apple'ın sunucuda doğrulanabilen makbuz verisini sağlar.
+  // Bu çağrı, satın alma eklentisi ilk kez kullanılmadan önce yapılmalıdır.
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+    await InAppPurchaseStoreKitPlatform.enableStoreKit1();
+  }
 
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,

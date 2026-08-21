@@ -1980,3 +1980,179 @@ const packageName = "com.ustakapinda.app";
     );
   }
 });
+
+/**
+ * Apple App Store'daki tüketilebilir jeton paketlerini doğrular ve jetonu
+ * yalnızca Apple'ın onayladığı işlem için kullanıcının hesabına ekler.
+ *
+ * StoreKit 1 makbuzu önce üretim Apple sunucusuna gönderilir. TestFlight ve
+ * sandbox makbuzlarında Apple 21007 döndürdüğünden, yalnızca bu durumda
+ * sandbox sunucusu tekrar denenir.
+ */
+exports.verifyAppStoreTokenPurchase = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError(
+      "unauthenticated",
+      "Giriş yapmanız gerekiyor."
+    );
+  }
+
+  const {
+    productId,
+    receiptData,
+    transactionId,
+  } = request.data;
+
+  if (!productId || !receiptData || !transactionId) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Apple satın alma bilgileri eksik."
+    );
+  }
+
+  const tokenPackages = {
+    tokens_120: 120,
+    tokens_240: 240,
+    tokens_480: 480,
+    tokens_960: 960,
+    tokens_1920: 1920,
+  };
+
+  const tokenAmount = tokenPackages[productId];
+
+  if (!tokenAmount) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Geçersiz ürün."
+    );
+  }
+
+  const verifyReceipt = async (url) => {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        "receipt-data": receiptData,
+        "exclude-old-transactions": false,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Apple makbuz doğrulama isteği başarısız: ${response.status}`);
+    }
+
+    return response.json();
+  };
+
+  try {
+    let verification = await verifyReceipt(
+      "https://buy.itunes.apple.com/verifyReceipt"
+    );
+
+    if (verification.status === 21007) {
+      verification = await verifyReceipt(
+        "https://sandbox.itunes.apple.com/verifyReceipt"
+      );
+    }
+
+    if (verification.status !== 0) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Apple satın almayı doğrulayamadı."
+      );
+    }
+
+    const receipt = verification.receipt;
+
+    if (receipt?.bundle_id !== "com.ustakapinda.app") {
+      throw new HttpsError(
+        "failed-precondition",
+        "Makbuz bu uygulamaya ait değil."
+      );
+    }
+
+    const matchingPurchase = (receipt.in_app ?? []).find(
+      (purchase) =>
+        purchase.product_id === productId &&
+        purchase.transaction_id === transactionId
+    );
+
+    if (!matchingPurchase) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Makbuzdaki satın alma işlemi bulunamadı."
+      );
+    }
+
+    const db = admin.firestore();
+    const purchaseRef = db
+      .collection("app_store_purchases")
+      .doc(transactionId);
+    const userRef = db.collection("users").doc(request.auth.uid);
+
+    const transactionResult = await db.runTransaction(async (transaction) => {
+      const [existingPurchase, userDoc] = await Promise.all([
+        transaction.get(purchaseRef),
+        transaction.get(userRef),
+      ]);
+
+      if (existingPurchase.exists) {
+        const existingData = existingPurchase.data();
+
+        if (existingData.uid !== request.auth.uid) {
+          throw new HttpsError(
+            "already-exists",
+            "Bu Apple satın alması başka bir hesapta kullanılmış."
+          );
+        }
+
+        return { alreadyProcessed: true };
+      }
+
+      if (!userDoc.exists) {
+        throw new HttpsError(
+          "not-found",
+          "Kullanıcı bulunamadı."
+        );
+      }
+
+      const currentTokens = userDoc.data().tokens ?? 0;
+
+      transaction.update(userRef, {
+        tokens: currentTokens + tokenAmount,
+      });
+
+      transaction.set(purchaseRef, {
+        uid: request.auth.uid,
+        productId,
+        tokens: tokenAmount,
+        transactionId,
+        originalTransactionId:
+          matchingPurchase.original_transaction_id ?? transactionId,
+        environment: verification.environment ?? null,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      return { alreadyProcessed: false };
+    });
+
+    return {
+      success: true,
+      tokensAdded: tokenAmount,
+      alreadyProcessed: transactionResult.alreadyProcessed,
+    };
+  } catch (error) {
+    logger.error("Apple App Store satın alma doğrulama hatası:", error);
+
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+
+    throw new HttpsError(
+      "internal",
+      "Apple satın alması doğrulanamadı."
+    );
+  }
+});
