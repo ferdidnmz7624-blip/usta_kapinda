@@ -4,12 +4,11 @@ import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
 
-/// Default [FirebaseOptions] for use with your Firebase apps.
+/// Default [FirebaseOptions] for use with Firebase.
 ///
 /// Example:
 /// ```dart
 /// import 'firebase_options.dart';
-/// // ...
 /// await Firebase.initializeApp(
 ///   options: DefaultFirebaseOptions.currentPlatform,
 /// );
@@ -19,29 +18,32 @@ class DefaultFirebaseOptions {
     if (kIsWeb) {
       throw UnsupportedError(
         'DefaultFirebaseOptions have not been configured for web - '
-        'you can reconfigure this by running the FlutterFire CLI again.',
+            'you can reconfigure this by running the FlutterFire CLI again.',
       );
     }
+
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
         return android;
+
       case TargetPlatform.iOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for ios - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return ios;
+
       case TargetPlatform.macOS:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for macos - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
+              'you can reconfigure this by running the FlutterFire CLI again.',
         );
+
       case TargetPlatform.windows:
         return windows;
+
       case TargetPlatform.linux:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for linux - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
+              'you can reconfigure this by running the FlutterFire CLI again.',
         );
+
       default:
         throw UnsupportedError(
           'DefaultFirebaseOptions are not supported for this platform.',
@@ -55,6 +57,17 @@ class DefaultFirebaseOptions {
     messagingSenderId: '857244787940',
     projectId: 'usta-kapinda-e9ea7',
     storageBucket: 'usta-kapinda-e9ea7.firebasestorage.app',
+  );
+
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyBeR0HtO7H_5-DRXMnBpIpqTifttMougN4',
+    appId: '1:857244787940:ios:18b747659d12e346b5b8f1',
+    messagingSenderId: '857244787940',
+    projectId: 'usta-kapinda-e9ea7',
+    storageBucket: 'usta-kapinda-e9ea7.firebasestorage.app',
+    iosClientId:
+    '857244787940-edmdse66624mhuqhs0sg8qiqlkajfro5.apps.googleusercontent.com',
+    iosBundleId: 'com.ustakapinda.app',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(

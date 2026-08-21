@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
 	<key>CLIENT_ID</key>
-	<string>857244787940-23024ujv0p8u4guejdp39j0gvql69ui0.apps.googleusercontent.com</string>
+	<string>857244787940-edmdse66624mhuqhs0sg8qiqlkajfro5.apps.googleusercontent.com</string>
 	<key>REVERSED_CLIENT_ID</key>
-	<string>com.googleusercontent.apps.857244787940-23024ujv0p8u4guejdp39j0gvql69ui0</string>
+	<string>com.googleusercontent.apps.857244787940-edmdse66624mhuqhs0sg8qiqlkajfro5</string>
 	<key>ANDROID_CLIENT_ID</key>
 	<string>857244787940-0v5aa2hbu01hdkjt80nt0jt6bn4u5jvo.apps.googleusercontent.com</string>
 	<key>API_KEY</key>
@@ -15,7 +15,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.ustakapinda.ustaKapinda</string>
+	<string>com.ustakapinda.app</string>
 	<key>PROJECT_ID</key>
 	<string>usta-kapinda-e9ea7</string>
 	<key>STORAGE_BUCKET</key>
@@ -31,6 +31,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:857244787940:ios:c9c47df79b7cbb35b5b8f1</string>
+	<string>1:857244787940:ios:18b747659d12e346b5b8f1</string>
 </dict>
 </plist>
