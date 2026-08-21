@@ -4,8 +4,7 @@ workflows:
     max_build_duration: 120
     instance_type: mac_mini_m2
     integrations:
-      # Create this Apple Developer Portal integration in Codemagic with the same name.
-      app_store_connect: codemagic
+      app_store_connect: Codemagic Usta Kapinda
 
     environment:
       flutter: stable
