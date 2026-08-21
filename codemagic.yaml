@@ -7,10 +7,9 @@ workflows:
     environment:
       flutter: stable
       xcode: latest
-      cocoapods: default
-
       vars:
-        XCODE_WORKSPACE: "Runner.xcworkspace"
+        # Codemagic starts in the repository root; the iOS workspace is below ios/.
+        XCODE_WORKSPACE: "ios/Runner.xcworkspace"
         XCODE_SCHEME: "Runner"
 
     scripts:
@@ -18,14 +17,9 @@ workflows:
         script: |
           flutter pub get
 
-      - name: Install CocoaPods
-        script: |
-          cd ios
-          pod install --repo-update
-
       - name: Set up iOS code signing
         script: |
-          xcode-project use-profiles
+          xcode-project use-profiles --project ios/Runner.xcodeproj
 
       - name: Build iOS IPA
         script: |
