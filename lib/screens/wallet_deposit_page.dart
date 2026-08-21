@@ -27,6 +27,7 @@ class _WalletDepositPageState extends State<WalletDepositPage> {
   int tokenBalance = 0;
   bool _storeAvailable = false;
   bool _loadingProducts = true;
+  String? _storeMessage;
 
   final Map<String, ProductDetails> _products = {};
 
@@ -107,61 +108,74 @@ class _WalletDepositPageState extends State<WalletDepositPage> {
   }
 
   Future<void> _initializeStore() async {
-    _purchaseSubscription =
-        _inAppPurchase.purchaseStream.listen(
-          _handlePurchaseUpdates,
-          onDone: () {
-            _purchaseSubscription?.cancel();
-          },
-          onError: (error) {
-            debugPrint(
-              "Google Play purchase stream error: $error",
-            );
-          },
-        );
-
-    final available = await _inAppPurchase.isAvailable();
-
-    if (!mounted) return;
-
-    setState(() {
-      _storeAvailable = available;
-    });
-
-    if (!available) {
-      setState(() {
-        _loadingProducts = false;
-      });
-      return;
-    }
-
-    final productIds = packages
-        .map<String>(
-          (package) => package["productId"] as String,
-    )
-        .toSet();
-
-    final response =
-    await _inAppPurchase.queryProductDetails(
-      productIds,
-    );
-
-    if (response.error != null) {
-      debugPrint(
-        "Google Play ürün sorgulama hatası: "
-            "${response.error}",
+    if (_purchaseSubscription == null) {
+      _purchaseSubscription = _inAppPurchase.purchaseStream.listen(
+        _handlePurchaseUpdates,
+        onDone: () => _purchaseSubscription?.cancel(),
+        onError: (error) => debugPrint("Satın alma akışı hatası: $error"),
       );
     }
 
-    for (final product in response.productDetails) {
-      _products[product.id] = product;
+    if (mounted) {
+      setState(() {
+        _loadingProducts = true;
+        _storeMessage = null;
+      });
     }
 
-    if (!mounted) return;
+    try {
+      final available = await _inAppPurchase.isAvailable();
+      if (!available) {
+        if (mounted) {
+          setState(() {
+            _storeAvailable = false;
+            _loadingProducts = false;
+            _storeMessage =
+                "App Store bağlantısı hazır değil. Lütfen tekrar deneyin.";
+          });
+        }
+        return;
+      }
 
-    setState(() {
-      _loadingProducts = false;
-    });
+      final productIds = packages
+          .map<String>((package) => package["productId"] as String)
+          .toSet();
+      final response = await _inAppPurchase.queryProductDetails(productIds);
+
+      if (response.error != null) {
+        debugPrint("Mağaza ürün sorgulama hatası: ${response.error}");
+      }
+
+      _products
+        ..clear()
+        ..addEntries(
+          response.productDetails.map(
+            (product) => MapEntry(product.id, product),
+          ),
+        );
+
+      if (!mounted) return;
+
+      final hasProducts = _products.isNotEmpty;
+      setState(() {
+        _storeAvailable = hasProducts;
+        _loadingProducts = false;
+        _storeMessage = hasProducts
+            ? null
+            : "Jeton paketleri henüz App Store'dan alınamadı. "
+                "Ürünlerin TestFlight için etkinleşmesi birkaç dakika sürebilir.";
+      });
+    } catch (error) {
+      debugPrint("Mağaza başlatma hatası: $error");
+      if (mounted) {
+        setState(() {
+          _storeAvailable = false;
+          _loadingProducts = false;
+          _storeMessage =
+              "Mağazaya bağlanılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.";
+        });
+      }
+    }
   }
 
   Future<void> _buyPackage(
@@ -587,8 +601,19 @@ class _WalletDepositPageState extends State<WalletDepositPage> {
           if (!_loadingProducts &&
               !_storeAvailable)
             Center(
-              child: Text(
-                l10n.storeUnavailable,
+              child: Column(
+                children: [
+                  Text(
+                    _storeMessage ?? l10n.storeUnavailable,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: _initializeStore,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text("Tekrar dene"),
+                  ),
+                ],
               ),
             ),
 

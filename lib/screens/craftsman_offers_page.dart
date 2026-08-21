@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/offer_model.dart';
-import '../services/job_service.dart';
 import '../services/offer_service.dart';
 import '../services/chat_service.dart';
 import 'craftsman_review_page.dart';
@@ -23,7 +22,6 @@ class _CraftsmanOffersPageState
     with SingleTickerProviderStateMixin {
 
 final OfferService _offerService = OfferService();
-final JobService _jobService = JobService();
 final ChatService _chatService = ChatService();
 
 late TabController _tabController;
@@ -42,6 +40,28 @@ vsync: this,
 void dispose() {
 _tabController.dispose();
 super.dispose();
+}
+
+Future<bool> _changeOfferStatus({
+required String offerId,
+required String status,
+}) async {
+try {
+await _offerService.updateOfferStatus(
+offerId: offerId,
+status: status,
+);
+return true;
+} catch (_) {
+if (mounted) {
+ScaffoldMessenger.of(context).showSnackBar(
+const SnackBar(
+content: Text("İşlem tamamlanamadı. Lütfen tekrar deneyin."),
+),
+);
+}
+return false;
+}
 }
 
 Color statusColor(String status) {
@@ -364,15 +384,11 @@ const SizedBox(height: 18),
           ),
         ),
         onPressed: () async {
-          await _offerService.updateOfferStatus(
+          await _changeOfferStatus(
             offerId: offer.id,
             status: "in_progress",
           );
 
-          await _jobService.updateJobStatus(
-            jobId: offer.jobId,
-            status: "in_progress",
-          );
         },
         icon: const Icon(Icons.play_arrow),
         label: Text(
@@ -395,13 +411,8 @@ const SizedBox(height: 18),
             ),
           ),
           onPressed: () async {
-            await _offerService.updateOfferStatus(
+            await _changeOfferStatus(
               offerId: offer.id,
-              status: "cancelled",
-            );
-
-            await _jobService.updateJobStatus(
-              jobId: offer.jobId,
               status: "cancelled",
             );
 
@@ -475,18 +486,11 @@ const SizedBox(height: 18),
           ),
         ),
         onPressed: () async {
-          await _offerService.updateOfferStatus(
+          await _changeOfferStatus(
             offerId: offer.id,
             status: "completed",
           );
 
-          await _jobService.updateJobStatus(
-            jobId: offer.jobId,
-            status: "completed",
-          );
-          await _chatService.deleteChatByJobId(
-            offer.jobId,
-          );
         },
         icon: const Icon(Icons.task_alt),
         label: Text(
@@ -528,19 +532,6 @@ const SizedBox(height: 18),
               ),
             );
 
-            if (!mounted) return;
-
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ChatPage(
-                  chatId: chatId,
-                  receiverId: offer.customerId,
-  receiverName: AppLocalizations.of(context)!.customer,
-                ),
-              ),
-            );
-
           },
           icon: const Icon(Icons.chat),
   label: Text(
@@ -564,17 +555,11 @@ const SizedBox(height: 18),
             ),
           ),
           onPressed: () async {
-            await _offerService.updateOfferStatus(
+            await _changeOfferStatus(
               offerId: offer.id,
               status: "cancelled",
             );
 
-            await _jobService.updateJobStatus(
-              jobId: offer.jobId,
-              status: "cancelled",
-            );
-
-            await _chatService.deleteChatByJobId(offer.jobId);
           },
           icon: const Icon(Icons.cancel),
           label: Text(
@@ -597,7 +582,7 @@ const SizedBox(height: 18),
           ),
         ),
         onPressed: () async{
-          await Navigator.push(
+          final reviewed = await Navigator.push<bool>(
             context,
             MaterialPageRoute(
               builder: (_) => CraftsmanReviewPage(
@@ -607,9 +592,9 @@ const SizedBox(height: 18),
             ),
           );
 
-          await _offerService.markCraftsmanReviewed(
-            offer.id,
-          );
+          if (reviewed == true) {
+            await _offerService.markCraftsmanReviewed(offer.id);
+          }
 
 
         },

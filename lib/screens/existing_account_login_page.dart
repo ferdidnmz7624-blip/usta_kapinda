@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/user_model.dart';
 import '../services/user_service.dart';
 import '../generated/app_localizations.dart';
+import 'mode_router_page.dart';
 
 class ExistingAccountLoginPage extends StatefulWidget {
   final String accountType;
@@ -25,11 +26,20 @@ class _ExistingAccountLoginPageState
   final UserService _userService = UserService();
   final FirebaseAuth _auth = FirebaseAuth.instance;
   bool hidePassword = true;
+  bool _isLoading = false;
+
   Future<void> loginAndLinkAccount() async {
-    final currentUid = _auth.currentUser!.uid;
+    final signedInUser = _auth.currentUser;
+    if (signedInUser == null) {
+      _showLoginError();
+      return;
+    }
+
+    final currentUid = signedInUser.uid;
     final l10n = AppLocalizations.of(context)!;
 
     try {
+      setState(() => _isLoading = true);
       await _auth.signOut();
 
       final result = await _auth.signInWithEmailAndPassword(
@@ -84,7 +94,10 @@ class _ExistingAccountLoginPageState
 
       if (!mounted) return;
 
-      Navigator.pop(context);
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const ModeRouterPage()),
+        (route) => false,
+      );
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
 
@@ -95,7 +108,29 @@ class _ExistingAccountLoginPageState
           ),
         ),
       );
+    } catch (_) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.loginFailed)),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _showLoginError() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(AppLocalizations.of(context)!.loginFailed)),
+    );
+  }
+
+  @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
   }
 
   @override
@@ -157,8 +192,14 @@ class _ExistingAccountLoginPageState
               width: double.infinity,
               height: 55,
               child: ElevatedButton(
-onPressed: loginAndLinkAccount,
-                child: const Text("Giriş Yap"),
+                onPressed: _isLoading ? null : loginAndLinkAccount,
+                child: _isLoading
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text("Giriş Yap"),
               ),
             ),
           ],

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -151,15 +153,7 @@ password: passwordController.text,
 final appUser =
 await UserService().getUser(_auth.currentUser!.uid);
 
-final token =
-await FirebaseMessaging.instance.getToken();
-
-if (token != null) {
-await UserService().saveFcmToken(
-_auth.currentUser!.uid,
-token,
-);
-}
+_saveFcmTokenInBackground(_auth.currentUser!.uid);
 
 if (!mounted) return;
 
@@ -172,11 +166,11 @@ ScaffoldMessenger.of(context).showSnackBar(
 return;
 }
 
-Navigator.pushReplacement(
-context,
-MaterialPageRoute(
-builder: (_) => const ModeRouterPage(),
-),
+Navigator.of(context).pushAndRemoveUntil(
+  MaterialPageRoute(
+    builder: (_) => const ModeRouterPage(),
+  ),
+  (route) => false,
 );
 } on FirebaseFunctionsException catch (e) {
   if (!mounted) return;
@@ -240,6 +234,19 @@ builder: (_) => const ModeRouterPage(),
   }
 }
 }
+
+void _saveFcmTokenInBackground(String uid) {
+  unawaited(
+    FirebaseMessaging.instance.getToken().then((token) async {
+      if (token != null) {
+        await UserService().saveFcmToken(uid, token);
+      }
+    }).catchError((error) {
+      debugPrint("Bildirim kaydı ertelendi: $error");
+    }),
+  );
+}
+
 Future<void> resetPassword() async {
   final l10n = AppLocalizations.of(context)!;
   if (emailController.text.trim().isEmpty) {
@@ -673,21 +680,16 @@ const SizedBox(height: 25),
           await _googleAuth.signInWithGoogle();
 
           if (credential == null) return;
-          final token = await FirebaseMessaging.instance.getToken();
-
-          if (token != null) {
-            await UserService().saveFcmToken(
-              FirebaseAuth.instance.currentUser!.uid,
-              token,
-            );
-          }
+          _saveFcmTokenInBackground(
+            FirebaseAuth.instance.currentUser!.uid,
+          );
           if (!mounted) return;
 
-          Navigator.pushReplacement(
-            context,
+          Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(
               builder: (_) => const ModeRouterPage(),
             ),
+            (route) => false,
           );
         } catch (e) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -732,21 +734,16 @@ borderRadius: BorderRadius.circular(18),
           final credential = await _appleAuth.signInWithApple();
 
           if (credential == null) return;
-          final token = await FirebaseMessaging.instance.getToken();
-
-          if (token != null) {
-            await UserService().saveFcmToken(
-              FirebaseAuth.instance.currentUser!.uid,
-              token,
-            );
-          }
+          _saveFcmTokenInBackground(
+            FirebaseAuth.instance.currentUser!.uid,
+          );
           if (!mounted) return;
 
-          Navigator.pushReplacement(
-            context,
+          Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(
               builder: (_) => const ModeRouterPage(),
             ),
+            (route) => false,
           );
         } catch (e) {
           if (!mounted) return;

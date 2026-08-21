@@ -7,15 +7,8 @@ import 'craftsman_main_page.dart';
 import 'customer_main_page.dart';
 import 'login_page.dart';
 
-class ModeRouterPage extends StatefulWidget {
+class ModeRouterPage extends StatelessWidget {
   const ModeRouterPage({super.key});
-
-  @override
-  State<ModeRouterPage> createState() => _ModeRouterPageState();
-}
-
-class _ModeRouterPageState extends State<ModeRouterPage> {
-  final UserService _userService = UserService();
 
   @override
   Widget build(BuildContext context) {
@@ -25,8 +18,8 @@ class _ModeRouterPageState extends State<ModeRouterPage> {
       return const LoginPage();
     }
 
-    return FutureBuilder<UserModel?>(
-      future: _userService.getUser(firebaseUser.uid),
+    return StreamBuilder<UserModel?>(
+      stream: UserService().streamUser(firebaseUser.uid),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(

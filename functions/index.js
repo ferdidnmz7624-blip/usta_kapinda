@@ -1560,9 +1560,28 @@ const transitions = {
 if (!(transitions[currentStatus] || []).includes(status)) {
   throw new Error("Bu durum değişikliğine izin verilmiyor.");
 }
-          await offerRef.update({
-            status: status,
+          const jobRef = db.collection("jobs").doc(offer.jobId);
+          const jobStatusByOfferStatus = {
+            in_progress: "in_progress",
+            completed: "completed",
+            cancelled: "cancelled",
+          };
+
+          await db.runTransaction(async (transaction) => {
+            transaction.update(offerRef, {status});
+
+            const jobStatus = jobStatusByOfferStatus[status];
+            if (jobStatus) {
+              transaction.update(jobRef, {status: jobStatus});
+            }
           });
+
+          if (status === "cancelled") {
+            const chatRef = db.collection("chats").doc(offer.jobId);
+            const messages = await chatRef.collection("messages").get();
+            await Promise.all(messages.docs.map((message) => message.ref.delete()));
+            await chatRef.delete();
+          }
 
           return { success: true };
         });

@@ -27,11 +27,19 @@ final TextEditingController _commentController =
 TextEditingController();
 
 double _rating = 5;
+bool _loading = false;
 
 Future<void> saveReview() async {
 final user = FirebaseAuth.instance.currentUser;
 
-if (user == null) return;
+if (user == null) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text("Oturum bulunamadı. Lütfen tekrar giriş yapın.")),
+  );
+  return;
+}
+
+setState(() => _loading = true);
 
 final review = ReviewModel(
 id: "",
@@ -44,21 +52,27 @@ comment: _commentController.text.trim(),
 createdAt: DateTime.now(),
 );
 
-await _reviewService.addReview(review);
+try {
+  await _reviewService.addReview(review);
+  if (!mounted) return;
+  Navigator.of(context).pop(true);
+} catch (_) {
+  if (mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Değerlendirme kaydedilemedi. Lütfen tekrar deneyin."),
+      ),
+    );
+  }
+} finally {
+  if (mounted) setState(() => _loading = false);
+}
+}
 
-if (!mounted) return;
-
-ScaffoldMessenger.of(context).showSnackBar(
-SnackBar(
-content: Text(
-AppLocalizations.of(context)!.reviewSaved,
-),
-),
-);
-
-if (!mounted) return;
-
-Navigator.of(context).pop(true);
+@override
+void dispose() {
+_commentController.dispose();
+super.dispose();
 }
 
 @override
@@ -117,8 +131,14 @@ const SizedBox(height: 30),
 SizedBox(
 width: double.infinity,
 child: ElevatedButton(
-onPressed: saveReview,
-child: Text(l10n.submitReview),
+onPressed: _loading ? null : saveReview,
+child: _loading
+    ? const SizedBox(
+        width: 22,
+        height: 22,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      )
+    : Text(l10n.submitReview),
 ),
 ),
 ],

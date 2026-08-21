@@ -47,7 +47,10 @@ class _CraftsmanReviewPageState extends State<CraftsmanReviewPage> {
 
     final currentUser = FirebaseAuth.instance.currentUser;
 
-    if (currentUser == null) return;
+    if (currentUser == null) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
 
     final review = ReviewModel(
       id: "",
@@ -60,21 +63,30 @@ class _CraftsmanReviewPageState extends State<CraftsmanReviewPage> {
       createdAt: DateTime.now(),
     );
 
-    await _reviewService.addReview(review);
+    try {
+      await _reviewService.addReview(review);
 
-    if (!mounted) return;
-
-    print("POP ÇALIŞTI");
-
-    Navigator.pop(context);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          AppLocalizations.of(context)!.reviewSubmittedSuccessfully,
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              "Değerlendirme kaydedilemedi. Lütfen tekrar deneyin.",
+            ),
+          ),
         ),
-      ),
-    );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    super.dispose();
   }
 
   @override

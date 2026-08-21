@@ -6,7 +6,6 @@ import '../models/offer_model.dart';
 import '../models/user_model.dart';
 
 import '../services/chat_service.dart';
-import '../services/job_service.dart';
 import '../services/notification_service.dart';
 import '../services/offer_service.dart';
 import '../services/user_service.dart';
@@ -29,7 +28,6 @@ class _OffersPageState extends State<OffersPage> {
 final OfferService _offerService = OfferService();
 final ChatService _chatService = ChatService();
 final UserService _userService = UserService();
-final JobService _jobService = JobService();
 final NotificationService _notificationService =
 NotificationService();
 
@@ -43,6 +41,28 @@ super.initState();
 _offerService.markAllOffersAsSeen(
 FirebaseAuth.instance.currentUser!.uid,
 );
+}
+
+Future<bool> _changeOfferStatus({
+required String offerId,
+required String status,
+}) async {
+try {
+await _offerService.updateOfferStatus(
+offerId: offerId,
+status: status,
+);
+return true;
+} catch (_) {
+if (mounted) {
+ScaffoldMessenger.of(context).showSnackBar(
+const SnackBar(
+content: Text("İşlem tamamlanamadı. Lütfen tekrar deneyin."),
+),
+);
+}
+return false;
+}
 }
 
 @override
@@ -508,13 +528,12 @@ offer.id;
 });
 
 try {
-await _offerService
-    .updateOfferStatus(
-offerId:
-offer.id,
-status:
-"in_progress",
+final changed = await _changeOfferStatus(
+offerId: offer.id,
+status: "in_progress",
 );
+
+if (!changed) return;
 
 if (!mounted) {
 return;
@@ -564,22 +583,11 @@ foregroundColor:
 Colors.white,
 ),
 onPressed: () async {
-await _offerService
-    .updateOfferStatus(
+await _changeOfferStatus(
 offerId: offer.id,
 status: "cancelled",
 );
 
-await _jobService
-    .updateJobStatus(
-jobId: offer.jobId,
-status: "cancelled",
-);
-
-await _chatService
-    .deleteChatByJobId(
-offer.jobId,
-);
 },
 ),
 ),
@@ -668,17 +676,12 @@ foregroundColor:
 Colors.white,
 ),
 onPressed: () async {
-await _offerService
-    .updateOfferStatus(
+final changed = await _changeOfferStatus(
 offerId: offer.id,
 status: "completed",
 );
 
-await _jobService
-    .updateJobStatus(
-jobId: offer.jobId,
-status: "completed",
-);
+if (!changed) return;
 
 if (!mounted) return;
 
@@ -715,22 +718,11 @@ foregroundColor:
 Colors.white,
 ),
 onPressed: () async {
-await _offerService
-    .updateOfferStatus(
+await _changeOfferStatus(
 offerId: offer.id,
 status: "cancelled",
 );
 
-await _jobService
-    .updateJobStatus(
-jobId: offer.jobId,
-status: "cancelled",
-);
-
-await _chatService
-    .deleteChatByJobId(
-offer.jobId,
-);
 },
 ),
 ),
@@ -820,7 +812,7 @@ foregroundColor:
 Colors.white,
 ),
 onPressed: () async {
-await Navigator.push(
+final reviewed = await Navigator.push<bool>(
 context,
 MaterialPageRoute(
 builder: (_) =>
@@ -833,10 +825,9 @@ offer.jobId,
 ),
 );
 
-await _offerService
-    .markCustomerReviewed(
-offer.id,
-);
+if (reviewed == true) {
+  await _offerService.markCustomerReviewed(offer.id);
+}
 },
 ),
 ),
