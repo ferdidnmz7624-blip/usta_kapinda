@@ -26,6 +26,14 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Profil fotoğrafı eklemek ve iş ilanlarına fotoğraf yüklemek için fotoğraf arşivinize erişir.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Profil fotoğrafı çekmek ve iş ilanlarına fotoğraf eklemek için kameranıza erişir.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Yakınınızdaki iş ve hizmetleri göstermek için konumunuzu kullanır.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Konuma dayalı iş ve hizmetleri göstermek için konumunuzu kullanır.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
