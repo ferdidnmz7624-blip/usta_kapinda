@@ -24,6 +24,18 @@ setGlobalOptions({
   maxInstances: 10,
 });
 
+// iOS bildirimlerinde ses, APNs payload'ında açıkça belirtilmelidir.
+const iOSNotificationOptions = {
+  headers: {
+    "apns-priority": "10",
+  },
+  payload: {
+    aps: {
+      sound: "default",
+    },
+  },
+};
+
 // TEST FONKSİYONU
 exports.test = onRequest((req, res) => {
   logger.info("TEST ÇALIŞTI");
@@ -90,6 +102,7 @@ if (!token) return;
             sound: "default",
           },
         },
+        apns: iOSNotificationOptions,
       });
 
       logger.info("SEND OK:", response);
@@ -141,6 +154,7 @@ if (!token) return;
             sound: "default",
           },
         },
+        apns: iOSNotificationOptions,
       });
 
       logger.info("OFFER SEND OK:", response);
@@ -212,6 +226,7 @@ if (!token) return;
             sound: "default",
           },
         },
+        apns: iOSNotificationOptions,
       });
 
       logger.info("STATUS SEND OK:", response);
@@ -283,6 +298,7 @@ if (!token) return;
             sound: "default",
           },
         },
+        apns: iOSNotificationOptions,
       });
 
       logger.info("FAVORITE SEND OK");
@@ -364,6 +380,7 @@ if (!token) return;
             sound: "default",
           },
         },
+        apns: iOSNotificationOptions,
       });
 
       logger.info("REVIEW SEND OK:", response);
@@ -456,6 +473,7 @@ if (user.isFrozen || user.isDeleting) {
               sound: "default",
             },
           },
+          apns: iOSNotificationOptions,
         });
 
         logger.info("GÖNDERİLDİ:", response);
