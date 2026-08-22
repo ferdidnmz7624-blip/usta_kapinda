@@ -617,8 +617,12 @@ class _WalletDepositPageState extends State<WalletDepositPage> {
               ),
             ),
 
+          // App Store ürün sorgusu, sözleşme veya inceleme işlemi sürerken
+          // geçici olarak boş dönebilir. iOS'ta paketleri gizlemek yerine
+          // görünür bırakırız; satın alma düğmesi zaten _storeAvailable ile
+          // güvenli biçimde pasif kalır.
           if (!_loadingProducts &&
-              _storeAvailable)
+              (_storeAvailable || defaultTargetPlatform == TargetPlatform.iOS))
             GridView.builder(
               shrinkWrap: true,
               physics:
