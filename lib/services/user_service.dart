@@ -75,8 +75,19 @@ class UserService {
   /// İki ayrı Firebase hesabını, her iki oturumun kanıtı doğrulanarak
   /// sunucu tarafında bağlar. İstemci başka kullanıcının belgesini yazmaz.
   Future<void> linkAccounts({required String sourceIdToken}) async {
+    final targetIdToken = await FirebaseAuth.instance.currentUser?.getIdToken(
+      true,
+    );
+    if (targetIdToken == null || targetIdToken.isEmpty) {
+      throw FirebaseAuthException(
+        code: 'no-current-user',
+        message: 'Bağlanacak hedef hesabın oturumu bulunamadı.',
+      );
+    }
+
     await _functions.httpsCallable('linkAccounts').call({
       'sourceIdToken': sourceIdToken,
+      'targetIdToken': targetIdToken,
     });
   }
 

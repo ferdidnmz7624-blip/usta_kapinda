@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -140,6 +141,13 @@ class _LoginOtpPageState extends State<LoginOtpPage> {
     if (widget.onAuthenticated != null) {
       try {
         await widget.onAuthenticated!(credential);
+      } on FirebaseFunctionsException catch (exception) {
+        if (mounted) {
+          setState(() {
+            loading = false;
+            error = exception.message ?? 'Hesaplar bağlanamadı. Lütfen tekrar deneyin.';
+          });
+        }
       } on StateError catch (exception) {
         if (mounted) {
           setState(() {

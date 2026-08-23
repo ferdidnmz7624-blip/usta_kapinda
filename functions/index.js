@@ -2189,30 +2189,31 @@ exports.getEmailByPhone = onCall(async (request) => {
           }
         });
         exports.linkAccounts = onCall(async (request) => {
-          if (!request.auth) {
-            throw new HttpsError("unauthenticated", "Oturum açmanız gerekiyor.");
-          }
-
           const sourceIdToken = String(request.data?.sourceIdToken || "");
-          if (!sourceIdToken) {
+          const targetIdToken = String(request.data?.targetIdToken || "");
+          if (!sourceIdToken || !targetIdToken) {
             throw new HttpsError(
                 "invalid-argument",
-                "Bağlanacak hesap için oturum kanıtı gerekli.",
+                "Her iki hesap için de oturum kanıtı gerekli.",
             );
           }
 
           let sourceToken;
+          let targetToken;
           try {
-            sourceToken = await admin.auth().verifyIdToken(sourceIdToken);
+            [sourceToken, targetToken] = await Promise.all([
+              admin.auth().verifyIdToken(sourceIdToken),
+              admin.auth().verifyIdToken(targetIdToken),
+            ]);
           } catch (_) {
             throw new HttpsError(
                 "permission-denied",
-                "Bağlanacak hesabın oturumu doğrulanamadı.",
+                "Bağlanacak hesapların oturumları doğrulanamadı.",
             );
           }
 
           const sourceUid = sourceToken.uid;
-          const targetUid = request.auth.uid;
+          const targetUid = targetToken.uid;
           if (sourceUid === targetUid) {
             throw new HttpsError(
                 "failed-precondition",
