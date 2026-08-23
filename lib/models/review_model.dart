@@ -42,6 +42,8 @@ class ReviewModel {
       Map<String, dynamic> map,
       String id,
       ) {
+    final createdAt = map["createdAt"];
+
     return ReviewModel(
       id: id,
       customerId: map["customerId"],
@@ -50,7 +52,9 @@ class ReviewModel {
       reviewerType: map["reviewerType"] ?? "customer",
       rating: (map["rating"] as num).toDouble(),
       comment: map["comment"] ?? "",
-      createdAt: (map["createdAt"] as Timestamp).toDate(),
+      createdAt: createdAt is Timestamp
+          ? createdAt.toDate()
+          : DateTime.fromMillisecondsSinceEpoch(0),
     );
   }
 }

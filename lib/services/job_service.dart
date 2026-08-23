@@ -93,28 +93,39 @@ class JobService {
       "status": status,
     });
   }
-  Stream<List<JobModel>> getJobsByCategories(
-      List<String> categories,
-      ) {
-    if (categories.isEmpty) {
-      return const Stream.empty();
+  /// Returns only the active listings that a craftsman is eligible to see.
+  ///
+  /// The complete profession list is applied before results are exposed. This
+  /// also supports craftsmen who selected more than Firestore's ten-value
+  /// [whereIn] limit without hiding any of their matching listings.
+  Stream<List<JobModel>> getJobsForCraftsman({
+    required String city,
+    required List<String> professions,
+  }) {
+    final normalizedCity = city.trim();
+    final normalizedProfessions = professions
+        .map((profession) => profession.trim())
+        .where((profession) => profession.isNotEmpty)
+        .toSet();
+
+    if (normalizedCity.isEmpty || normalizedProfessions.isEmpty) {
+      return Stream.value(const <JobModel>[]);
     }
 
     return _firestore
         .collection(_collection)
         .where("status", isEqualTo: "active")
-        .where(
-      "category",
-      whereIn: categories.length > 10
-          ? categories.sublist(0, 10)
-          : categories,
-    )
         .orderBy("createdAt", descending: true)
         .snapshots()
         .map(
           (snapshot) => snapshot.docs
-          .map((e) => JobModel.fromMap(e.data()))
-          .toList(),
-    );
+              .map((doc) => JobModel.fromMap(doc.data()))
+              .where(
+                (job) =>
+                    job.city.trim() == normalizedCity &&
+                    normalizedProfessions.contains(job.category.trim()),
+              )
+              .toList(),
+        );
   }
 }

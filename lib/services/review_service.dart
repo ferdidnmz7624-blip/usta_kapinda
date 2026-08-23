@@ -39,4 +39,20 @@ class ReviewService {
           .toList(),
     );
   }
+
+  /// Returns reviews received by the user, regardless of whether the user is
+  /// currently using the customer or craftsman profile.
+  Stream<List<ReviewModel>> getUserReviews(String userId) {
+    return _firestore
+        .collection("users")
+        .doc(userId)
+        .collection("reviews")
+        .orderBy("createdAt", descending: true)
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => ReviewModel.fromMap(doc.data(), doc.id))
+              .toList(),
+        );
+  }
 }

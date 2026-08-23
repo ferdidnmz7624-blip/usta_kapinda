@@ -16,6 +16,8 @@ import 'switch_account_page.dart';
 import 'wallet_page.dart';
 import '../models/review_model.dart';
 import '../services/review_service.dart';
+import '../models/offer_model.dart';
+import '../services/offer_service.dart';
 import 'wallet_deposit_page.dart';
 import '../generated/app_localizations.dart';
 import 'comments_page.dart';
@@ -31,6 +33,7 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
 final UserService _userService = UserService();
 final ReviewService _reviewService = ReviewService();
+final OfferService _offerService = OfferService();
 final ImagePicker _picker = ImagePicker();
 
 UserModel? userModel;
@@ -42,17 +45,6 @@ bool isLoading = true;
 void initState() {
 super.initState();
 loadUser();
-}
-String get successRate {
-  if (userModel == null) return "0";
-  if (userModel!.completedJobs == 0) {
-    return "0";
-  }
-
-  final success =
-  ((userModel!.rating / 5) * 100).round();
-
-  return success.toString();
 }
 Future<void> loadUser() async {
 final currentUser = FirebaseAuth.instance.currentUser;
@@ -70,9 +62,6 @@ setState(() {
 userModel = data;
 isLoading = false;
 });
-}
-double get averageRating {
-  return userModel?.rating ?? 0;
 }
 Future<void> pickImage() async {
   final image = await _picker.pickImage(
@@ -126,12 +115,34 @@ Future<void> pickImage() async {
     );
   }
 }
-Stream<int> get reviewCount {
-  return _reviewService
-      .getCraftsmanReviews(
-    FirebaseAuth.instance.currentUser!.uid,
-  )
-      .map((event) => event.length);
+int _completedWorkCount(List<OfferModel> offers) {
+  return offers
+      .where((offer) => offer.status == "completed" || offer.status == "reviewed")
+      .map((offer) => offer.jobId)
+      .toSet()
+      .length;
+}
+
+int _successRate(List<OfferModel> offers) {
+  final completed = _completedWorkCount(offers);
+  final resolved = offers
+      .where(
+        (offer) =>
+            offer.status == "completed" ||
+            offer.status == "reviewed" ||
+            offer.status == "cancelled",
+      )
+      .map((offer) => offer.jobId)
+      .toSet()
+      .length;
+
+  return resolved == 0 ? 0 : ((completed / resolved) * 100).round();
+}
+
+double _averageRating(List<ReviewModel> reviews) {
+  if (reviews.isEmpty) return 0;
+  return reviews.map((review) => review.rating).reduce((a, b) => a + b) /
+      reviews.length;
 }
 Widget statCard(
 String title,
@@ -344,55 +355,69 @@ padding: const EdgeInsets.all(18),
 child: Column(
 children: [
 
-  Row(
-    children: [
+  StreamBuilder<List<OfferModel>>(
+    stream: userModel?.activeMode == "craftsman"
+        ? _offerService.getOffersByCraftsman(
+            FirebaseAuth.instance.currentUser!.uid,
+          )
+        : _offerService.getOffersByCustomer(
+            FirebaseAuth.instance.currentUser!.uid,
+          ),
+    builder: (context, offerSnapshot) {
+      final offers = offerSnapshot.data ?? const <OfferModel>[];
+      final completedJobs = _completedWorkCount(offers);
+      final successRate = _successRate(offers);
 
-statCard(
-l10n.jobs,
-  "${userModel?.completedJobs ?? 0}",
-        Icons.work,
-        Colors.blue,
-      ),
+      return StreamBuilder<List<ReviewModel>>(
+        stream: _reviewService.getUserReviews(
+          FirebaseAuth.instance.currentUser!.uid,
+        ),
+        builder: (context, reviewSnapshot) {
+          final reviews = reviewSnapshot.data ?? const <ReviewModel>[];
+          final averageRating = _averageRating(reviews);
 
-      const SizedBox(width: 10),
-
-  statCard(
-    l10n.rating,
-    averageRating.toStringAsFixed(1),
-        Icons.star,
-        Colors.amber,
-      ),
-
-    ],
-  ),
-
-  const SizedBox(height: 10),
-
-  Row(
-    children: [
-
-      StreamBuilder<int>(
-        stream: reviewCount,
-        builder: (context, snapshot) {
-          return statCard(
-            l10n.reviews,
-            "${snapshot.data ?? 0}",
-            Icons.chat,
-            Colors.green,
+          return Column(
+            children: [
+              Row(
+                children: [
+                  statCard(
+                    l10n.jobs,
+                    completedJobs.toString(),
+                    Icons.work,
+                    Colors.blue,
+                  ),
+                  const SizedBox(width: 10),
+                  statCard(
+                    l10n.rating,
+                    averageRating.toStringAsFixed(1),
+                    Icons.star,
+                    Colors.amber,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  statCard(
+                    l10n.reviews,
+                    reviews.length.toString(),
+                    Icons.chat,
+                    Colors.green,
+                  ),
+                  const SizedBox(width: 10),
+                  statCard(
+                    l10n.success,
+                    "%$successRate",
+                    Icons.verified,
+                    Colors.deepPurple,
+                  ),
+                ],
+              ),
+            ],
           );
         },
-      ),
-
-      const SizedBox(width: 10),
-
-      statCard(
-        l10n.success,
-        "%$successRate",
-        Icons.verified,
-        Colors.deepPurple,
-      ),
-
-    ],
+      );
+    },
   ),
     const SizedBox(height: 20),
 

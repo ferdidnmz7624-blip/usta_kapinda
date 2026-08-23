@@ -226,8 +226,9 @@ setState(() {});
 Expanded(
 child: StreamBuilder<List<JobModel>>(
   stream: currentUser?.activeMode == "craftsman"
-      ? _jobService.getJobsByCategories(
-    currentUser!.professions,
+      ? _jobService.getJobsForCraftsman(
+    city: currentUser!.city,
+    professions: currentUser!.professions,
   )
       : _jobService.getJobs(),
 builder: (context, snapshot) {

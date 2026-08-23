@@ -10,6 +10,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'search_page.dart';
 import '../generated/app_localizations.dart';
+import '../models/review_model.dart';
+import '../services/review_service.dart';
 
 class CustomerHomePage extends StatefulWidget {
   const CustomerHomePage({super.key});
@@ -22,9 +24,9 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
   final AuthService _authService = AuthService();
   String firstName = "";
   String city = "";
-  double rating = 0;
   bool isLoading = true;
   String? accountType;
+  final ReviewService _reviewService = ReviewService();
 
   int selectedIndex = 0;
 
@@ -88,8 +90,6 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     firstName = data?["firstName"] ?? "";
 
     city = data?["city"] ?? "";
-
-    rating = (data?["rating"] ?? 0).toDouble();
 
     if (mounted) {
       setState(() {
@@ -338,13 +338,30 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
 
                               SizedBox(height: 8),
 
-                              Text(
-                                "${rating.toStringAsFixed(1)} ${l10n.points}",
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight:
-                                  FontWeight.bold,
+                              StreamBuilder<List<ReviewModel>>(
+                                stream: _reviewService.getUserReviews(
+                                  FirebaseAuth.instance.currentUser!.uid,
                                 ),
+                                builder: (context, snapshot) {
+                                  final reviews =
+                                      snapshot.data ?? const <ReviewModel>[];
+                                  final rating = reviews.isEmpty
+                                      ? 0.0
+                                      : reviews
+                                              .map((review) => review.rating)
+                                              .reduce(
+                                                (sum, value) => sum + value,
+                                              ) /
+                                          reviews.length;
+
+                                  return Text(
+                                    "${rating.toStringAsFixed(1)} ${l10n.points}",
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  );
+                                },
                               ),
                             ],
                           ),

@@ -4,9 +4,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/job_model.dart';
 import '../models/offer_model.dart';
+import '../models/review_model.dart';
 import '../services/job_service.dart';
 import '../services/offer_service.dart';
 import '../services/notification_service.dart';
+import '../services/review_service.dart';
 import '../services/user_service.dart';
 import '../models/user_model.dart';
 import '../pages/notifications_page.dart';
@@ -30,6 +32,7 @@ final OfferService _offerService = OfferService();
 final NotificationService _notificationService =
 NotificationService();
 final UserService _userService = UserService();
+final ReviewService _reviewService = ReviewService();
 
 @override
 Widget build(BuildContext context) {
@@ -53,15 +56,8 @@ future: _userService.getUser(
 FirebaseAuth.instance.currentUser!.uid,
 ),
 builder: (context, userSnapshot) {
-return StreamBuilder<List<JobModel>>(
-stream: _jobService.getJobs(),
-builder: (context, jobSnapshot) {
-
   final firstName =
       userSnapshot.data?.firstName ?? l10n.craftsman;
-
-final jobCount =
-jobSnapshot.data?.length ?? 0;
 
 return Container(
 width: double.infinity,
@@ -91,26 +87,10 @@ fontWeight: FontWeight.bold,
 
 SizedBox(height: 8),
 
-  FutureBuilder<int>(
-    future: _getAvailableJobCount(),
-    builder: (context, snapshot) {
-      final count = snapshot.data ?? 0;
-
-      return Text(
-        count == 0
-            ? l10n.noNewListingsToday
-            : l10n.newListingsWaiting(count),
-        style: const TextStyle(
-          color: Colors.white70,
-        ),
-      );
-    },
-  ),
+  _availableJobsSummary(l10n),
 
 ],
   ),
-);
-},
 );
 },
 ),
@@ -196,21 +176,40 @@ Row(
 children: [
 
   Expanded(
-    child: StreamBuilder<List<JobModel>>(
-      stream: _jobService.getJobs(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return _statCard(
-            "0",
-            l10n.newJobs,
-            Icons.work,
-          );
+    child: FutureBuilder<UserModel?>(
+      future: _userService.getUser(
+        FirebaseAuth.instance.currentUser!.uid,
+      ),
+      builder: (context, userSnapshot) {
+        final user = userSnapshot.data;
+        if (user == null) {
+          return _statCard("0", l10n.newJobs, Icons.work);
         }
 
-        return _statCard(
-          "0",
-          l10n.newJobs,
-          Icons.work,
+        return StreamBuilder<List<JobModel>>(
+          stream: _jobService.getJobsForCraftsman(
+            city: user.city,
+            professions: user.professions,
+          ),
+          builder: (context, jobSnapshot) {
+            return StreamBuilder<List<OfferModel>>(
+              stream: _offerService.getOffersByCraftsman(
+                FirebaseAuth.instance.currentUser!.uid,
+              ),
+              builder: (context, offerSnapshot) {
+                final count = _availableJobCount(
+                  jobs: jobSnapshot.data ?? const <JobModel>[],
+                  offers: offerSnapshot.data ?? const <OfferModel>[],
+                );
+
+                return _statCard(
+                  count.toString(),
+                  l10n.newJobs,
+                  Icons.work,
+                );
+              },
+            );
+          },
         );
       },
     ),
@@ -250,20 +249,19 @@ const SizedBox(width: 12),
     children: [
       Expanded(
         child: StreamBuilder<List<OfferModel>>(
-          stream: _offerService.getAcceptedOffersByCraftsman(
+          stream: _offerService.getOffersByCraftsman(
             FirebaseAuth.instance.currentUser!.uid,
           ),
           builder: (context, snapshot) {
-            if (!snapshot.hasData) {
-              return _statCard(
-                "0",
-                l10n.accepted,
-                Icons.check_circle,
-              );
-            }
+            final acceptedCount = (snapshot.data ?? const <OfferModel>[])
+                .where(
+                  (offer) =>
+                      offer.status != "pending" && offer.status != "rejected",
+                )
+                .length;
 
             return _statCard(
-              snapshot.data!.length.toString(),
+              acceptedCount.toString(),
               l10n.accepted,
               Icons.check_circle,
             );
@@ -273,15 +271,21 @@ const SizedBox(width: 12),
 
       const SizedBox(width: 12),
       Expanded(
-        child: FutureBuilder<UserModel?>(
-          future: _userService.getUser(
+        child: StreamBuilder<List<ReviewModel>>(
+          stream: _reviewService.getUserReviews(
             FirebaseAuth.instance.currentUser!.uid,
           ),
           builder: (context, snapshot) {
+            final reviews = snapshot.data ?? const <ReviewModel>[];
+            final rating = reviews.isEmpty
+                ? 0.0
+                : reviews
+                        .map((review) => review.rating)
+                        .reduce((sum, rating) => sum + rating) /
+                    reviews.length;
+
             return _statCard(
-              snapshot.hasData
-                  ? snapshot.data!.rating.toStringAsFixed(1)
-                  : "0.0",
+              rating.toStringAsFixed(1),
               l10n.rating,
               Icons.star,
             );
@@ -302,8 +306,22 @@ const SizedBox(width: 12),
   ),
 const SizedBox(height: 15),
 
-StreamBuilder<List<JobModel>>(
-stream: _jobService.getJobs(),
+FutureBuilder<UserModel?>(
+future: _userService.getUser(
+  FirebaseAuth.instance.currentUser!.uid,
+),
+builder: (context, userSnapshot) {
+final user = userSnapshot.data;
+
+if (user == null) {
+  return Text(l10n.noListingsYet);
+}
+
+return StreamBuilder<List<JobModel>>(
+stream: _jobService.getJobsForCraftsman(
+  city: user.city,
+  professions: user.professions,
+),
 builder: (context, snapshot) {
 
 if (snapshot.connectionState ==
@@ -321,13 +339,6 @@ snapshot.data!.isEmpty) {
 }
 
 final jobs = snapshot.data!;
-print("İLAN SAYISI: ${jobs.length}");
-
-for (var job in jobs) {
-  print(
-    "İLAN => ${job.title} | status=${job.status} | id=${job.id}",
-  );
-}
 return Column(
 children: jobs.map((job) {
 
@@ -340,6 +351,8 @@ child: _jobCard(job),
 );
 
 }).toList(),
+);
+},
 );
 },
 ),
@@ -431,27 +444,54 @@ IconData _categoryIcon(String category) {
       return Icons.home_repair_service;
   }
 }
-Future<int> _getAvailableJobCount() async {
-final uid = FirebaseAuth.instance.currentUser!.uid;
+Widget _availableJobsSummary(AppLocalizations l10n) {
+  return FutureBuilder<UserModel?>(
+    future: _userService.getUser(FirebaseAuth.instance.currentUser!.uid),
+    builder: (context, userSnapshot) {
+      final user = userSnapshot.data;
+      if (user == null) {
+        return Text(
+          l10n.noNewListingsToday,
+          style: const TextStyle(color: Colors.white70),
+        );
+      }
 
-final jobs = await _jobService.getJobs().first;
+      return StreamBuilder<List<JobModel>>(
+        stream: _jobService.getJobsForCraftsman(
+          city: user.city,
+          professions: user.professions,
+        ),
+        builder: (context, jobSnapshot) {
+          return StreamBuilder<List<OfferModel>>(
+            stream: _offerService.getOffersByCraftsman(
+              FirebaseAuth.instance.currentUser!.uid,
+            ),
+            builder: (context, offerSnapshot) {
+              final count = _availableJobCount(
+                jobs: jobSnapshot.data ?? const <JobModel>[],
+                offers: offerSnapshot.data ?? const <OfferModel>[],
+              );
 
-int count = 0;
-
-for (final job in jobs) {
-if (job.status != "active") continue;
-
-final offered = await _offerService.hasAlreadyOffered(
-jobId: job.id,
-craftsmanId: uid,
-);
-
-if (!offered) {
-count++;
+              return Text(
+                count == 0
+                    ? l10n.noNewListingsToday
+                    : l10n.newListingsWaiting(count),
+                style: const TextStyle(color: Colors.white70),
+              );
+            },
+          );
+        },
+      );
+    },
+  );
 }
-}
 
-return count;
+int _availableJobCount({
+  required List<JobModel> jobs,
+  required List<OfferModel> offers,
+}) {
+  final offeredJobIds = offers.map((offer) => offer.jobId).toSet();
+  return jobs.where((job) => !offeredJobIds.contains(job.id)).length;
 }
 Widget _jobCard(JobModel job) {
   final l10n = AppLocalizations.of(context)!;
