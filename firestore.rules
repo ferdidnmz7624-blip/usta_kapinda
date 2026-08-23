@@ -11,6 +11,17 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == uid;
     }
 
+    // Eski istemcinin yalnızca sunucuda karşılıklı olarak bağlanmış ikinci
+    // hesabını okuyabilmesi için dar uyumluluk istisnası. Bu, sorguya veya
+    // başka kullanıcı belgelerine erişim sağlamaz.
+    function isLinkedOwnAccount(userId) {
+      return signedIn() &&
+          (get(/databases/$(database)/documents/users/$(request.auth.uid))
+              .data.linkedCustomerUid == userId ||
+           get(/databases/$(database)/documents/users/$(request.auth.uid))
+              .data.linkedCraftsmanUid == userId);
+    }
+
     function isSafeNewUser(userId) {
       return isOwner(userId) &&
           request.resource.data.uid == userId &&
@@ -58,7 +69,8 @@ service cloud.firestore {
       // içerir. Başka bir kullanıcının bu ham belgeyi okuyabilmesi yasaktır.
       // Herkese gösterilecek sınırlı alanlar public_profiles koleksiyonunda
       // Cloud Function tarafından üretilir.
-      allow read: if isOwner(userId);
+      allow get: if isOwner(userId) || isLinkedOwnAccount(userId);
+      allow list: if false;
       allow create: if isSafeNewUser(userId);
       allow update: if isOwner(userId)
           && onlyAllowedUserFieldsChanged();
