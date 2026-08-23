@@ -4,6 +4,8 @@ workflows:
     max_build_duration: 120
     environment:
       flutter: stable
+      android_signing:
+        - usta_kapinda_android_release
 
     scripts:
       - name: Get Flutter packages
