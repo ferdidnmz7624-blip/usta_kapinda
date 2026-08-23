@@ -56,26 +56,6 @@ class _SwitchAccountPageState extends State<SwitchAccountPage> {
       return;
     }
 
-    final linkedUser = await _userService.getLinkedAccount(
-      source: user!,
-      targetAccountType: 'customer',
-    );
-
-    if (linkedUser == null) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bağlı müşteri hesabı bulunamadı.')),
-      );
-      return;
-    }
-
-    // Eski kayıtların bağlantısı eksikse, doğru hesabı bulduktan sonra onar.
-    await _userService.updateLinkedAccounts(
-      uid: user!.uid,
-      linkedCustomerUid: linkedUser.uid,
-      linkedCustomerEmail: linkedUser.email,
-    );
-
     await FirebaseAuth.instance.signOut();
 
     if (!mounted) return;
@@ -83,8 +63,8 @@ class _SwitchAccountPageState extends State<SwitchAccountPage> {
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(
-        // Hedef müşteri hesabının e-postası dolu gelir; gerekirse düzenlenebilir.
-        builder: (_) => LoginPage(initialEmail: linkedUser.email),
+        // Bağlantı e-postası yalnızca sahibinin özel belgesinden okunur.
+        builder: (_) => LoginPage(initialEmail: user!.linkedCustomerEmail),
       ),
       (route) => false,
     );
@@ -105,26 +85,6 @@ class _SwitchAccountPageState extends State<SwitchAccountPage> {
       return;
     }
 
-    final linkedUser = await _userService.getLinkedAccount(
-      source: user!,
-      targetAccountType: 'craftsman',
-    );
-
-    if (linkedUser == null) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bağlı usta hesabı bulunamadı.')),
-      );
-      return;
-    }
-
-    // Eski kayıtların bağlantısı eksikse, doğru hesabı bulduktan sonra onar.
-    await _userService.updateLinkedAccounts(
-      uid: user!.uid,
-      linkedCraftsmanUid: linkedUser.uid,
-      linkedCraftsmanEmail: linkedUser.email,
-    );
-
     await FirebaseAuth.instance.signOut();
 
     if (!mounted) return;
@@ -132,8 +92,8 @@ class _SwitchAccountPageState extends State<SwitchAccountPage> {
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(
-        // Hedef usta hesabının e-postası dolu gelir; gerekirse düzenlenebilir.
-        builder: (_) => LoginPage(initialEmail: linkedUser.email),
+        // Bağlantı e-postası yalnızca sahibinin özel belgesinden okunur.
+        builder: (_) => LoginPage(initialEmail: user!.linkedCraftsmanEmail),
       ),
       (route) => false,
     );

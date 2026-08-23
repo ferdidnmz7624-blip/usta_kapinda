@@ -34,7 +34,7 @@ class NotificationService {
   }
   Future<List<UserModel>> getMatchingCraftsmen(JobModel job) async {
     final snapshot = await _firestore
-        .collection("users")
+        .collection("public_profiles")
         .where("accountType", isEqualTo: "craftsman")
         .where("city", isEqualTo: job.city)
         .get();

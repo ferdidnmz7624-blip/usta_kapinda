@@ -4,6 +4,7 @@ const admin = require("firebase-admin");
 const {
   onDocumentCreated,
   onDocumentUpdated,
+  onDocumentWritten,
 } = require("firebase-functions/v2/firestore");
 const { onRequest } = require("firebase-functions/v2/https");
 const { logger } = require("firebase-functions");
@@ -42,7 +43,83 @@ function codeHash(email, purpose, code) {
       .digest("hex");
 }
 
+function requestIp(req) {
+  const forwarded = String(req.headers["x-forwarded-for"] || "");
+  return (forwarded.split(",")[0].trim() || req.ip || "unknown").slice(0, 128);
+}
+
+// E-posta doğrulama uç noktaları oturum öncesi çağrıldığından, kötüye
+// kullanımı sınırlamak için e-posta başına beklemeye ek olarak IP bazlı
+// pencere uygulanır. Bu koleksiyonun istemci erişimi Firestore kurallarıyla
+// tamamen kapalıdır.
+async function enforceVerificationRateLimit(req, purpose) {
+  const db = admin.firestore();
+  const key = crypto.createHash("sha256")
+      .update(`${purpose}:${requestIp(req)}`).digest("hex");
+  const ref = db.collection("verification_rate_limits").doc(key);
+  const now = Date.now();
+  const windowMs = 15 * 60 * 1000;
+  const maxRequests = 12;
+
+  await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(ref);
+    const data = snapshot.exists ? snapshot.data() : {};
+    const windowStartedAt = Number(data.windowStartedAt || now);
+    const withinWindow = now - windowStartedAt < windowMs;
+    const count = withinWindow ? Number(data.count || 0) : 0;
+    if (count >= maxRequests) {
+      throw new HttpsError(
+          "resource-exhausted",
+          "Çok fazla kod isteği. Lütfen daha sonra tekrar deneyin.",
+      );
+    }
+    transaction.set(ref, {
+      windowStartedAt: withinWindow ? windowStartedAt : now,
+      count: count + 1,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  });
+}
+
 admin.initializeApp();
+
+// Ham users belgelerinde telefon, e-posta, adres, FCM belirteci, jeton ve
+// hesap bağlantıları bulunur. İstemci yalnızca aşağıdaki sınırlı profili
+// okuyabilir; bu belge güvenilir sunucu tarafından türetilir.
+function toPublicProfile(user) {
+  return {
+    uid: String(user.uid || ""),
+    accountType: String(user.accountType || "customer"),
+    customerProfile: user.customerProfile === true,
+    craftsmanProfile: user.craftsmanProfile === true,
+    firstName: String(user.firstName || ""),
+    lastName: String(user.lastName || ""),
+    city: String(user.city || ""),
+    district: String(user.district || ""),
+    professions: Array.isArray(user.professions) ? user.professions : [],
+    experience: Number.isFinite(user.experience) ? user.experience : 0,
+    about: String(user.about || ""),
+    profilePhoto: String(user.profilePhoto || ""),
+    rating: Number.isFinite(user.rating) ? user.rating : 5,
+    completedJobs: Number.isFinite(user.completedJobs) ? user.completedJobs : 0,
+    isOnline: user.isOnline === true,
+    lastSeen: user.lastSeen || null,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+}
+
+exports.syncPublicProfile = onDocumentWritten(
+  "users/{userId}",
+  async (event) => {
+    const publicRef = admin.firestore()
+        .collection("public_profiles").doc(event.params.userId);
+    if (!event.data || !event.data.after.exists) {
+      await publicRef.delete();
+      return;
+    }
+    await publicRef.set(toPublicProfile(event.data.after.data()));
+  },
+);
 
 setGlobalOptions({
   region: "europe-west1",
@@ -767,6 +844,8 @@ exports.sendVerificationCodeEmail = onRequest(
         });
       }
 
+      await enforceVerificationRateLimit(req, purpose);
+
       const verificationRef = admin.firestore()
           .collection("email_verifications")
           .doc(verificationKey(email, purpose));
@@ -816,11 +895,14 @@ exports.sendVerificationCodeEmail = onRequest(
         success: true,
       });
     } catch (e) {
+      if (e instanceof HttpsError && e.code === "resource-exhausted") {
+        return res.status(429).json({success: false, message: e.message});
+      }
       logger.error(e);
 
       return res.status(500).json({
         success: false,
-        message: e.toString(),
+        message: "Doğrulama kodu gönderilemedi.",
       });
     }
   }
@@ -1306,9 +1388,9 @@ exports.payOfferWithTokens = onCall(async (request) => {
 
   if (
     !jobId ||
-    !price ||
-    !message ||
-    !estimatedDays
+    typeof price !== "number" || !Number.isFinite(price) ||
+    typeof message !== "string" ||
+    typeof estimatedDays !== "number" || !Number.isInteger(estimatedDays)
   ) {
     throw new HttpsError(
       "invalid-argument",
@@ -1348,6 +1430,19 @@ exports.payOfferWithTokens = onCall(async (request) => {
 
     const jobData = jobDoc.data();
     const budget = Number(jobData.budget);
+
+    if (!Number.isFinite(budget) || budget <= 0) {
+      throw new HttpsError("failed-precondition", "İlan bütçesi geçersiz.");
+    }
+
+    if (userData.accountType !== "craftsman" ||
+        userData.craftsmanProfile !== true ||
+        userData.isFrozen === true || userData.isDeleting === true) {
+      throw new HttpsError(
+        "permission-denied",
+        "Yalnızca aktif usta hesapları teklif verebilir.",
+      );
+    }
 
     if (jobData.userId === uid || jobData.status !== "active") {
       throw new HttpsError(
@@ -1395,12 +1490,12 @@ exports.payOfferWithTokens = onCall(async (request) => {
           );
         }
 
-        const existingOffer = await db
+        const existingOfferQuery = db
             .collection("offers")
             .where("jobId", "==", jobId)
             .where("craftsmanId", "==", uid)
-            .limit(1)
-            .get();
+            .limit(1);
+        const existingOffer = await transaction.get(existingOfferQuery);
 
         if (!existingOffer.empty) {
           throw new HttpsError(
@@ -1886,6 +1981,27 @@ if (!permittedByRole) {
             );
           }
 
+          // Engelleme listeleri gizli kullanıcı belgelerinde tutulur. İstemci
+          // karşı tarafın listesini okuyamadığı için bu kontrol sunucuda
+          // zorunludur; değiştirilmiş uygulama paketiyle atlanamaz.
+          const [senderUserDoc, receiverUserDoc] = await Promise.all([
+            db.collection("users").doc(senderId).get(),
+            db.collection("users").doc(receiverId).get(),
+          ]);
+          const senderBlocked = senderUserDoc.exists &&
+              Array.isArray(senderUserDoc.data().blockedUsers) ?
+            senderUserDoc.data().blockedUsers : [];
+          const receiverBlocked = receiverUserDoc.exists &&
+              Array.isArray(receiverUserDoc.data().blockedUsers) ?
+            receiverUserDoc.data().blockedUsers : [];
+          if (senderBlocked.includes(receiverId) ||
+              receiverBlocked.includes(senderId)) {
+            throw new HttpsError(
+              "permission-denied",
+              "Kullanıcılardan biri diğerini engellediği için mesaj gönderilemez.",
+            );
+          }
+
           const offerSnapshot = await db
               .collection("offers")
               .where("jobId", "==", chat.jobId)
@@ -2330,29 +2446,44 @@ const packageName = "com.ustakapinda.app";
       );
     }
 
+    // İstemcinin gönderdiği ürün kimliği, Google'ın doğruladığı satın almayla
+    // birebir eşleşmelidir. Böylece farklı bir paketin makbuzu kullanılamaz.
+    if (purchase.productId && purchase.productId !== productId) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Satın alma paketi doğrulanamadı.",
+      );
+    }
+
     const db = admin.firestore();
 
     const purchaseRef = db
         .collection("google_play_purchases")
         .doc(purchaseToken);
 
-    const existingPurchase =
-        await purchaseRef.get();
-
-    if (existingPurchase.exists) {
-      return {
-        success: true,
-        alreadyProcessed: true,
-      };
-    }
-
     const userRef =
         db.collection("users").doc(uid);
 
-    await db.runTransaction(
+    const transactionResult = await db.runTransaction(
       async (transaction) => {
-        const userDoc =
-            await transaction.get(userRef);
+        // Aynı Google purchase token'ının eşzamanlı iki istekte iki kez
+        // bakiyeye yazılmaması için hem makbuz hem kullanıcı bu transaction
+        // içinde okunur ve yazılır.
+        const [existingPurchase, userDoc] = await Promise.all([
+          transaction.get(purchaseRef),
+          transaction.get(userRef),
+        ]);
+
+        if (existingPurchase.exists) {
+          const purchaseData = existingPurchase.data();
+          if (purchaseData.uid !== uid) {
+            throw new HttpsError(
+              "already-exists",
+              "Bu Google Play satın alması başka bir hesapta kullanılmış.",
+            );
+          }
+          return {alreadyProcessed: true};
+        }
 
         if (!userDoc.exists) {
           throw new HttpsError(
@@ -2384,12 +2515,14 @@ const packageName = "com.ustakapinda.app";
                 admin.firestore.FieldValue.serverTimestamp(),
           },
         );
+        return {alreadyProcessed: false};
       },
     );
 
     return {
       success: true,
       tokensAdded: tokenAmount,
+      alreadyProcessed: transactionResult.alreadyProcessed,
     };
   } catch (error) {
     logger.error(

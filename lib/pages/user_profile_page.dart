@@ -23,7 +23,7 @@ title: Text(l10n.profile),
 ),
 body: StreamBuilder(
 stream: FirebaseFirestore.instance
-    .collection('users')
+    .collection('public_profiles')
     .doc(userId)
     .snapshots(),
 builder: (context, snapshot) {

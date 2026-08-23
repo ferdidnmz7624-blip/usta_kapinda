@@ -7,7 +7,7 @@ class StatisticsService {
       String userId,
       ) async {
     final userDoc =
-    await _firestore.collection("users").doc(userId).get();
+    await _firestore.collection("public_profiles").doc(userId).get();
 
     final reviews = await _firestore
         .collection("reviews")

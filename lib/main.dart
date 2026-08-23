@@ -33,6 +33,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await FirebaseAppCheck.instance.activate(
     androidProvider: AndroidProvider.playIntegrity,
+    appleProvider: AppleProvider.appAttestWithDeviceCheckFallback,
   );
 }
 
@@ -77,6 +78,7 @@ Future<void> _initializeOptionalServices() async {
   try {
     await FirebaseAppCheck.instance.activate(
       androidProvider: AndroidProvider.playIntegrity,
+      appleProvider: AppleProvider.appAttestWithDeviceCheckFallback,
     );
   } catch (error, stackTrace) {
     debugPrint('App Check başlatılamadı: $error');

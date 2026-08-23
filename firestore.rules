@@ -43,11 +43,6 @@ service cloud.firestore {
             "experience",
             "professions",
             "profilePhoto",
-            "activeMode",
-            "linkedCustomerUid",
-            "linkedCraftsmanUid",
-            "linkedCustomerEmail",
-            "linkedCraftsmanEmail",
             "blockedUsers",
             "isOnline",
             "lastSeen",
@@ -59,7 +54,11 @@ service cloud.firestore {
 
     match /users/{userId} {
 
-      allow read: if signedIn();
+      // Kullanıcı belgesi; e-posta, telefon, adres, jeton ve FCM belirteci
+      // içerir. Başka bir kullanıcının bu ham belgeyi okuyabilmesi yasaktır.
+      // Herkese gösterilecek sınırlı alanlar public_profiles koleksiyonunda
+      // Cloud Function tarafından üretilir.
+      allow read: if isOwner(userId);
       allow create: if isSafeNewUser(userId);
       allow update: if isOwner(userId)
           && onlyAllowedUserFieldsChanged();
@@ -76,6 +75,15 @@ service cloud.firestore {
         allow read: if signedIn();
         allow write: if false;
       }
+    }
+
+    // ================= PUBLIC PROFILES =================
+
+    match /public_profiles/{userId} {
+      allow read: if signedIn();
+      // İstemci bu belgeyi asla yazamaz; yalnızca güvenilir sunucu tetikleyicisi
+      // users belgesinden izin verilen alanları kopyalar.
+      allow write: if false;
     }
 
     // ================= JOBS =================

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/user_model.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 
@@ -12,7 +13,9 @@ class UserService {
   }
 
   Future<UserModel?> getUser(String uid) async {
-    final doc = await _firestore.collection('users').doc(uid).get();
+    final isCurrentUser = FirebaseAuth.instance.currentUser?.uid == uid;
+    final collection = isCurrentUser ? 'users' : 'public_profiles';
+    final doc = await _firestore.collection(collection).doc(uid).get();
 
     if (!doc.exists) {
       return null;
@@ -34,11 +37,6 @@ class UserService {
       "experience": user.experience,
       "about": user.about,
       "profilePhoto": user.profilePhoto,
-      "activeMode": user.activeMode,
-      "linkedCustomerUid": user.linkedCustomerUid,
-      "linkedCraftsmanUid": user.linkedCraftsmanUid,
-      "linkedCustomerEmail": user.linkedCustomerEmail,
-      "linkedCraftsmanEmail": user.linkedCraftsmanEmail,
     });
   }
 
@@ -74,32 +72,6 @@ class UserService {
     }, SetOptions(merge: true));
   }
 
-  Future<void> updateLinkedAccounts({
-    required String uid,
-    String? linkedCustomerUid,
-    String? linkedCraftsmanUid,
-    String? linkedCustomerEmail,
-    String? linkedCraftsmanEmail,
-  }) async {
-    final Map<String, dynamic> data = {};
-
-    if (linkedCustomerUid != null) {
-      data["linkedCustomerUid"] = linkedCustomerUid;
-    }
-    if (linkedCustomerEmail != null) {
-      data["linkedCustomerEmail"] = linkedCustomerEmail;
-    }
-
-    if (linkedCraftsmanEmail != null) {
-      data["linkedCraftsmanEmail"] = linkedCraftsmanEmail;
-    }
-    if (linkedCraftsmanUid != null) {
-      data["linkedCraftsmanUid"] = linkedCraftsmanUid;
-    }
-
-    await _firestore.collection("users").doc(uid).update(data);
-  }
-
   /// İki ayrı Firebase hesabını, her iki oturumun kanıtı doğrulanarak
   /// sunucu tarafında bağlar. İstemci başka kullanıcının belgesini yazmaz.
   Future<void> linkAccounts({required String sourceIdToken}) async {
@@ -108,59 +80,10 @@ class UserService {
     });
   }
 
-  Future<UserModel?> getUserByEmail(String email) async {
-    final query = await _firestore
-        .collection("users")
-        .where("email", isEqualTo: email)
-        .limit(1)
-        .get();
-
-    if (query.docs.isEmpty) return null;
-
-    return UserModel.fromMap(query.docs.first.data());
-  }
-
-  /// Bağlı hesabı öncelikle UID ile bulur; eski sürümlerde eksik veya yanlış
-  /// kaydedilmiş bağlantılar için e-posta ve karşılıklı bağlantıdan geri kazanır.
-  Future<UserModel?> getLinkedAccount({
-    required UserModel source,
-    required String targetAccountType,
-  }) async {
-    final isCustomer = targetAccountType == 'customer';
-    final linkedUid = isCustomer
-        ? source.linkedCustomerUid
-        : source.linkedCraftsmanUid;
-    final linkedEmail = isCustomer
-        ? source.linkedCustomerEmail
-        : source.linkedCraftsmanEmail;
-
-    if (linkedUid.isNotEmpty) {
-      final linked = await getUser(linkedUid);
-      if (linked?.accountType == targetAccountType) return linked;
-    }
-
-    if (linkedEmail.isNotEmpty) {
-      final linked = await getUserByEmail(linkedEmail);
-      if (linked?.accountType == targetAccountType) return linked;
-    }
-
-    final reverseLinkField = isCustomer
-        ? 'linkedCraftsmanUid'
-        : 'linkedCustomerUid';
-    final matches = await _firestore
-        .collection('users')
-        .where(reverseLinkField, isEqualTo: source.uid)
-        .limit(5)
-        .get();
-    for (final doc in matches.docs) {
-      final candidate = UserModel.fromMap(doc.data());
-      if (candidate.accountType == targetAccountType) return candidate;
-    }
-    return null;
-  }
-
   Stream<UserModel?> streamUser(String uid) {
-    return _firestore.collection("users").doc(uid).snapshots().map((doc) {
+    final isCurrentUser = FirebaseAuth.instance.currentUser?.uid == uid;
+    final collection = isCurrentUser ? 'users' : 'public_profiles';
+    return _firestore.collection(collection).doc(uid).snapshots().map((doc) {
       if (!doc.exists) return null;
 
       return UserModel.fromMap(doc.data()!);
@@ -248,21 +171,12 @@ class UserService {
         .doc(currentUserId)
         .snapshots()
         .asyncMap((myDoc) async {
-          final otherDoc = await _firestore
-              .collection("users")
-              .doc(otherUserId)
-              .get();
-
           final myBlocked = List<String>.from(
             myDoc.data()?["blockedUsers"] ?? [],
           );
-
-          final otherBlocked = List<String>.from(
-            otherDoc.data()?["blockedUsers"] ?? [],
-          );
-
-          return !(myBlocked.contains(otherUserId) ||
-              otherBlocked.contains(currentUserId));
+          // Karşı tarafın engel listesi gizlidir; kesin kontrol sendMessage
+          // Cloud Function'ında yapılır.
+          return !myBlocked.contains(otherUserId);
         });
   }
 
