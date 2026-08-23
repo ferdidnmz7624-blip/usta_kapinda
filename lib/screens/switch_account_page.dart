@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../models/user_model.dart';
 import '../services/user_service.dart';
+import '../services/google_auth_service.dart';
 import 'complete_second_profile_page.dart';
 import 'login_page.dart';
 import '../generated/app_localizations.dart';
@@ -56,7 +57,7 @@ class _SwitchAccountPageState extends State<SwitchAccountPage> {
       return;
     }
 
-    await FirebaseAuth.instance.signOut();
+    await GoogleAuthService().signOut();
 
     if (!mounted) return;
 
@@ -85,7 +86,7 @@ class _SwitchAccountPageState extends State<SwitchAccountPage> {
       return;
     }
 
-    await FirebaseAuth.instance.signOut();
+    await GoogleAuthService().signOut();
 
     if (!mounted) return;
 

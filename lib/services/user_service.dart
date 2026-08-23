@@ -151,7 +151,10 @@ class UserService {
           final List<UserModel> users = [];
 
           for (final uid in blockedUsers) {
-            final userDoc = await _firestore.collection("users").doc(uid).get();
+            final userDoc = await _firestore
+                .collection("public_profiles")
+                .doc(uid)
+                .get();
 
             if (userDoc.exists) {
               users.add(UserModel.fromMap(userDoc.data()!));
@@ -195,7 +198,7 @@ class UserService {
 
   Stream<List<UserModel>> getCraftsmen() {
     return _firestore
-        .collection("users")
+        .collection("public_profiles")
         .where("accountType", isEqualTo: "craftsman")
         .snapshots()
         .map((snapshot) {

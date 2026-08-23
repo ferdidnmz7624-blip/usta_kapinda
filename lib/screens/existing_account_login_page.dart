@@ -40,7 +40,7 @@ class _ExistingAccountLoginPageState extends State<ExistingAccountLoginPage> {
 
     _sourceUid = signedInUser.uid;
     _sourceUser = sourceUser;
-    _sourceIdToken = await signedInUser.getIdToken();
+    _sourceIdToken = await signedInUser.getIdToken(true);
     return true;
   }
 
@@ -52,6 +52,11 @@ class _ExistingAccountLoginPageState extends State<ExistingAccountLoginPage> {
     if (currentUser == null || linkedUid == null || _sourceIdToken == null) {
       throw StateError(l10n.loginFailed);
     }
+
+    // E-posta OTP'sinden hemen sonra Callable'ın yeni hedef hesabın kimliğini
+    // kullanmasını garanti eder. Aksi halde SDK önceki oturumla çağrı yapıp
+    // kullanıcı uygulamayı yeniden açana kadar bağlamayı başarısız gösterebilir.
+    await _auth.currentUser?.getIdToken(true);
 
     if (_sourceUid == linkedUid) {
       throw StateError('Aynı hesap kendi kendisiyle bağlanamaz.');
@@ -117,6 +122,12 @@ class _ExistingAccountLoginPageState extends State<ExistingAccountLoginPage> {
           context,
         ).showSnackBar(SnackBar(content: Text(e.message ?? l10n.loginFailed)));
       }
+    } on FirebaseFunctionsException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.message ?? l10n.loginFailed)));
+      }
     } on StateError catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -148,6 +159,12 @@ class _ExistingAccountLoginPageState extends State<ExistingAccountLoginPage> {
       );
       if (result == null) return;
       await _linkSignedInAccount(result);
+    } on FirebaseFunctionsException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.message ?? l10n.loginFailed)));
+      }
     } on StateError catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(

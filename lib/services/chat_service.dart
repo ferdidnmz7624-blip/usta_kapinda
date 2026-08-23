@@ -4,7 +4,6 @@ import '../models/message_model.dart';
 import 'dart:io';
 
 import 'package:firebase_storage/firebase_storage.dart';
-import 'offer_service.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 
 class ChatService {
@@ -21,59 +20,21 @@ class ChatService {
     return result.data["chatId"] as String;
   }
 
-  final OfferService _offerService = OfferService();
-
-  /// Mesaj Gönder
+  /// Mesaj yetkilendirmesi ve iş durumu denetimi yalnızca Cloud Function'da
+  /// yapılır. Karşı kullanıcının özel belgesini istemcide okumaya çalışmak,
+  /// gizlilik kuralları nedeniyle gönderimi daha sunucuya ulaşmadan keser.
   Future<void> sendMessage({
     required String chatId,
     required MessageModel message,
   }) async {
-    final senderDoc = await _firestore
-        .collection("users")
-        .doc(message.senderId)
-        .get();
-
-    final receiverDoc = await _firestore
-        .collection("users")
-        .doc(message.receiverId)
-        .get();
-
-    final senderBlocked = List<String>.from(
-      senderDoc.data()?["blockedUsers"] ?? [],
-    );
-
-    final receiverBlocked = List<String>.from(
-      receiverDoc.data()?["blockedUsers"] ?? [],
-    );
-
-    if (senderBlocked.contains(message.receiverId) ||
-        receiverBlocked.contains(message.senderId)) {
-      throw Exception("blocked");
-    }
-    final chatDoc = await _firestore.collection("chats").doc(chatId).get();
-
-    final jobId = chatDoc.data()?["jobId"];
-
-    if (jobId != null) {
-      final offer = await _offerService.getOfferByJobId(jobId);
-
-      if (offer == null) {
-        throw Exception("Teklif bulunamadı.");
-      }
-
-      const allowedStatuses = [
-        "accepted",
-        "in_progress",
-      ];
-      if (!allowedStatuses.contains(offer.status)) {
-        throw Exception("Bu iş için mesajlaşma artık kapalı.");
-      }
-    }
     await _functions.httpsCallable("sendMessage").call({
       "chatId": chatId,
       "senderId": message.senderId,
       "receiverId": message.receiverId,
       "message": message.message,
+      "type": message.type,
+      "fileUrl": message.fileUrl,
+      "fileName": message.fileName,
     });
   }
 

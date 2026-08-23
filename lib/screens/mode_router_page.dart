@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../models/user_model.dart';
 import '../services/user_service.dart';
+import '../services/google_auth_service.dart';
 import 'craftsman_main_page.dart';
 import 'customer_main_page.dart';
 import 'login_page.dart';
@@ -74,7 +75,7 @@ class _ProfileUnavailable extends StatelessWidget {
               Text(message, textAlign: TextAlign.center),
               const SizedBox(height: 16),
               OutlinedButton(
-                onPressed: () => FirebaseAuth.instance.signOut(),
+                onPressed: () => GoogleAuthService().signOut(),
                 child: const Text('Çıkış yap'),
               ),
             ],

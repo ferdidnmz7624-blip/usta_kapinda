@@ -15,6 +15,7 @@ import '../pages/blocked_users_page.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/user_service.dart';
+import '../services/google_auth_service.dart';
 import 'login_page.dart';
 import '../generated/app_localizations.dart';
 
@@ -87,7 +88,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
     await _userService.freezeAccount();
 
-    await FirebaseAuth.instance.signOut();
+    await GoogleAuthService().signOut();
 
     if (!mounted) return;
 
@@ -131,7 +132,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
     await _userService.requestDeleteAccount();
 
-    await FirebaseAuth.instance.signOut();
+    await GoogleAuthService().signOut();
 
     if (!mounted) return;
 

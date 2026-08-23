@@ -1938,9 +1938,12 @@ if (!permittedByRole) {
             senderId,
             receiverId,
             message,
+            type = "text",
+            fileUrl = "",
+            fileName = "",
           } = request.data;
 
-          if (!chatId || !senderId || !receiverId || !message) {
+          if (!chatId || !senderId || !receiverId) {
             throw new Error("Eksik parametre.");
           }
 
@@ -1948,11 +1951,12 @@ if (!permittedByRole) {
             throw new Error("Yetkiniz yok.");
           }
 
-          if (
-            typeof message !== "string" ||
-            message.trim().length === 0 ||
-            message.length > 4000
-          ) {
+          const isTextMessage = type === "text" && typeof message === "string" &&
+              message.trim().length > 0 && message.length <= 4000;
+          const isImageMessage = type === "image" && typeof fileUrl === "string" &&
+              fileUrl.startsWith("https://") && fileUrl.length <= 4000 &&
+              typeof fileName === "string" && fileName.length <= 255;
+          if (!isTextMessage && !isImageMessage) {
             throw new HttpsError(
               "invalid-argument",
               "Geçersiz mesaj.",
@@ -2027,13 +2031,17 @@ if (!permittedByRole) {
           await chatRef.collection("messages").add({
             senderId,
             receiverId,
-            message,
+            message: isTextMessage ? message.trim() : "",
+            type,
+            fileUrl: isImageMessage ? fileUrl : "",
+            fileName: isImageMessage ? fileName : "",
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             status: "sent",
           });
 
+          const lastMessage = isTextMessage ? message.trim() : "📷 Fotoğraf";
           await chatRef.set({
-            lastMessage: message,
+            lastMessage,
             lastMessageTime: admin.firestore.FieldValue.serverTimestamp(),
             unreadCount: {
               [receiverId]: admin.firestore.FieldValue.increment(1),

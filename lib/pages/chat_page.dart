@@ -71,13 +71,18 @@ class _ChatPageState extends State<ChatPage>
       createdAt: DateTime.now(),
     );
 
-    await _chatService.sendMessage(
-      chatId: widget.chatId,
-      message: message,
-
-    );
-
-    _controller.clear();
+    try {
+      await _chatService.sendMessage(
+        chatId: widget.chatId,
+        message: message,
+      );
+      _controller.clear();
+    } catch (exception) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Mesaj gönderilemedi: $exception')),
+      );
+    }
   }
 
   Future<void> sendImage() async {
@@ -107,10 +112,17 @@ class _ChatPageState extends State<ChatPage>
       createdAt: DateTime.now(),
     );
 
-    await _chatService.sendMessage(
-      chatId: widget.chatId,
-      message: message,
-    );
+    try {
+      await _chatService.sendMessage(
+        chatId: widget.chatId,
+        message: message,
+      );
+    } catch (exception) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Fotoğraf gönderilemedi: $exception')),
+      );
+    }
   }
 
   void _showAttachmentSheet() {

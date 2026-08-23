@@ -10,8 +10,18 @@ class GoogleAuthService {
 
   Future<UserCredential?> signInWithGoogle({
     bool createProfileIfMissing = true,
+    bool forceAccountPicker = true,
   }) async {
     try {
+      // Firebase'den çıkış yapmak Google hesabını yerelde seçili bırakır.
+      // Her girişte seçim ekranı isteniyorsa önce sağlayıcı oturumunu temizle.
+      if (forceAccountPicker) {
+        try {
+          await _googleSignIn.signOut();
+        } catch (_) {
+          // Sağlayıcıda açık bir hesap yoksa seçim ekranını yine göster.
+        }
+      }
       final GoogleSignInAccount? googleUser =
       await _googleSignIn.signIn();
 
@@ -78,7 +88,10 @@ class GoogleAuthService {
   }
 
   Future<void> signOut() async {
-    await _googleSignIn.signOut();
-    await _auth.signOut();
+    try {
+      await _googleSignIn.signOut();
+    } finally {
+      await _auth.signOut();
+    }
   }
 }

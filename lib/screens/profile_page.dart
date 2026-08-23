@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../models/user_model.dart';
 import '../services/user_service.dart';
+import '../services/google_auth_service.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'account_page.dart';
 import 'edit_profile_page.dart';
@@ -595,7 +596,7 @@ const SizedBox(height: 25),
     color: Colors.red,
     title: l10n.logout,
     onTap: () async {
-      await FirebaseAuth.instance.signOut();
+      await GoogleAuthService().signOut();
 
       if (!context.mounted) return;
 
