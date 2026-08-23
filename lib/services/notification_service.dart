@@ -6,25 +6,6 @@ import '../models/user_model.dart';
 class NotificationService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  Future<void> createNotification({
-    required String userId,
-    required String title,
-    required String body,
-  }) async {
-    final doc = _firestore.collection("notifications").doc();
-
-    final notification = NotificationModel(
-      id: doc.id,
-      userId: userId,
-      title: title,
-      body: body,
-      isRead: false,
-      createdAt: Timestamp.now(),
-    );
-
-    await doc.set(notification.toMap());
-  }
-
   Stream<List<NotificationModel>> getNotifications(String userId) {
     return _firestore
         .collection("notifications")

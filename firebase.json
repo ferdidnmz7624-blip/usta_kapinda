@@ -4,7 +4,7 @@
       "android": {
         "default": {
           "projectId": "usta-kapinda-e9ea7",
-          "appId": "1:857244787940:android:99ae99bb19cdb6c9b5b8f1",
+          "appId": "1:857244787940:android:c1a67eaafa214c2cb5b8f1",
           "fileOutput": "android/app/google-services.json"
         }
       },
@@ -12,7 +12,7 @@
         "lib/firebase_options.dart": {
           "projectId": "usta-kapinda-e9ea7",
           "configurations": {
-            "android": "1:857244787940:android:99ae99bb19cdb6c9b5b8f1",
+            "android": "1:857244787940:android:c1a67eaafa214c2cb5b8f1",
             "windows": "1:857244787940:web:92a60830bc103df2b5b8f1"
           }
         }
@@ -28,7 +28,8 @@
         ".git",
         "firebase-debug.log",
         "firebase-debug.*.log",
-        "*.local"
+        "*.local",
+        "usta-kapinda-e9ea7-d5f08f0fbe38.json"
       ],
       "source": "functions"
     }

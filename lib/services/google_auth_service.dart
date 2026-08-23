@@ -8,7 +8,9 @@ class GoogleAuthService {
         '857244787940-voisdb8md8jja2jkpmun6bis8phr8n41.apps.googleusercontent.com',
   );
 
-  Future<UserCredential?> signInWithGoogle() async {
+  Future<UserCredential?> signInWithGoogle({
+    bool createProfileIfMissing = true,
+  }) async {
     try {
       final GoogleSignInAccount? googleUser =
       await _googleSignIn.signIn();
@@ -18,20 +20,13 @@ class GoogleAuthService {
       final GoogleSignInAuthentication googleAuth =
       await googleUser.authentication;
 
-      print('GOOGLE ID TOKEN VAR MI: ${googleAuth.idToken != null}');
-      print('GOOGLE ACCESS TOKEN VAR MI: ${googleAuth.accessToken != null}');
-
       final credential = GoogleAuthProvider.credential(
         idToken: googleAuth.idToken,
         accessToken: googleAuth.accessToken,
       );
 
-      print('FIREBASE CREDENTIAL OLUŞTURULUYOR');
-
       final userCredential =
       await _auth.signInWithCredential(credential);
-
-      print('FIREBASE SIGN IN BAŞARILI');
 
       final user = userCredential.user;
 
@@ -42,7 +37,7 @@ class GoogleAuthService {
 
         final snapshot = await doc.get();
 
-        if (!snapshot.exists) {
+        if (!snapshot.exists && createProfileIfMissing) {
           await doc.set({
             'uid': user.uid,
             'firstName': user.displayName ?? '',
@@ -54,16 +49,23 @@ class GoogleAuthService {
             'activeMode': 'customer',
             'customerProfile': true,
             'craftsmanProfile': false,
-            'wallet': 0.0,
+            'linkedCustomerUid': '',
+            'linkedCraftsmanUid': '',
+            'linkedCustomerEmail': '',
+            'linkedCraftsmanEmail': '',
             'rating': 5.0,
             'completedJobs': 0,
+            'tokens': 0,
+            'isFrozen': false,
+            'isDeleting': false,
             'experience': 0,
-            'profession': '',
+            'professions': <String>[],
             'about': '',
             'city': '',
             'district': '',
             'neighborhood': '',
             'address': '',
+            'isOnline': false,
             'createdAt': FieldValue.serverTimestamp(),
           });
         }

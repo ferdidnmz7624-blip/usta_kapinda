@@ -11,6 +11,23 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == uid;
     }
 
+    function isSafeNewUser(userId) {
+      return isOwner(userId) &&
+          request.resource.data.uid == userId &&
+          request.resource.data.email == request.auth.token.email &&
+          request.resource.data.accountType in ["customer", "craftsman"] &&
+          request.resource.data.activeMode == request.resource.data.accountType &&
+          request.resource.data.customerProfile ==
+              (request.resource.data.accountType == "customer") &&
+          request.resource.data.craftsmanProfile ==
+              (request.resource.data.accountType == "craftsman") &&
+          request.resource.data.rating == 5 &&
+          request.resource.data.completedJobs == 0 &&
+          request.resource.data.tokens == 0 &&
+          request.resource.data.isFrozen == false &&
+          request.resource.data.isDeleting == false;
+    }
+
     function onlyAllowedUserFieldsChanged() {
       return request.resource.data.diff(resource.data)
           .affectedKeys()
@@ -43,7 +60,7 @@ service cloud.firestore {
     match /users/{userId} {
 
       allow read: if signedIn();
-      allow create: if isOwner(userId);
+      allow create: if isSafeNewUser(userId);
       allow update: if isOwner(userId)
           && onlyAllowedUserFieldsChanged();
       allow delete: if false;
@@ -67,10 +84,16 @@ service cloud.firestore {
 
       allow read: if signedIn();
 
-      allow create: if signedIn();
+      allow create: if signedIn() &&
+          request.resource.data.userId == request.auth.uid &&
+          request.resource.data.id == jobId &&
+          request.resource.data.status == "active";
 
       allow update: if signedIn() &&
-          resource.data.userId == request.auth.uid;
+          resource.data.userId == request.auth.uid &&
+          request.resource.data.userId == resource.data.userId &&
+          request.resource.data.id == resource.data.id &&
+          request.resource.data.createdAt == resource.data.createdAt;
 
       allow delete: if signedIn() &&
           resource.data.userId == request.auth.uid;
@@ -82,9 +105,12 @@ service cloud.firestore {
 
       allow read: if signedIn();
 
-      allow create: if signedIn();
+      allow create: if false;
 
-      allow update: if signedIn();
+      allow update: if signedIn() &&
+          resource.data.customerId == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(["isSeenByCustomer"]);
 
       allow delete: if false;
     }
@@ -96,12 +122,14 @@ service cloud.firestore {
       allow read: if signedIn() &&
           request.auth.uid in resource.data.users;
 
-      allow create: if signedIn();
+      allow create: if false;
 
       allow update: if signedIn() &&
-          request.auth.uid in resource.data.users;
+          request.auth.uid in resource.data.users &&
+          request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(["typing", "unreadCount"]);
 
-      allow delete: if signedIn();
+      allow delete: if false;
 
       match /messages/{messageId} {
 
@@ -109,11 +137,21 @@ service cloud.firestore {
             request.auth.uid in
             get(/databases/$(database)/documents/chats/$(chatId)).data.users;
 
-        allow create: if signedIn();
+        allow create: if false;
 
-        allow update: if signedIn();
+        allow update: if signedIn() &&
+            resource.data.receiverId == request.auth.uid &&
+            request.resource.data.senderId == resource.data.senderId &&
+            request.resource.data.receiverId == resource.data.receiverId &&
+            request.resource.data.message == resource.data.message &&
+            request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(["status", "deliveredAt", "seenAt"]) &&
+            ((resource.data.status == "sent" &&
+                request.resource.data.status == "delivered") ||
+             (resource.data.status == "delivered" &&
+                request.resource.data.status == "seen"));
 
-        allow delete: if signedIn();
+        allow delete: if false;
       }
     }
 
@@ -126,7 +164,10 @@ service cloud.firestore {
 
       allow create: if false;
 
-      allow update: if false;
+      allow update: if signedIn() &&
+          resource.data.userId == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(["isRead"]);
 
       allow delete: if false;
     }
@@ -152,7 +193,8 @@ service cloud.firestore {
       allow read: if signedIn() &&
           resource.data.uid == request.auth.uid;
 
-      allow create: if signedIn();
+      allow create: if signedIn() &&
+          request.resource.data.uid == request.auth.uid;
 
       allow update: if false;
 
@@ -165,7 +207,7 @@ service cloud.firestore {
 
       allow read: if signedIn();
 
-      allow create: if signedIn();
+      allow create: if false;
 
       allow update: if false;
 

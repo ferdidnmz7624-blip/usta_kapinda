@@ -498,7 +498,7 @@ const SizedBox(height: 18),
         ),
       ),
     ),
-  if (offer.status == "in_progress")
+  if (offer.status == "accepted" || offer.status == "in_progress")
     Padding(
       padding: const EdgeInsets.only(top: 10),
       child: SizedBox(
@@ -582,7 +582,7 @@ const SizedBox(height: 18),
           ),
         ),
         onPressed: () async{
-          final reviewed = await Navigator.push<bool>(
+          await Navigator.push<bool>(
             context,
             MaterialPageRoute(
               builder: (_) => CraftsmanReviewPage(
@@ -591,10 +591,6 @@ const SizedBox(height: 18),
               ),
             ),
           );
-
-          if (reviewed == true) {
-            await _offerService.markCraftsmanReviewed(offer.id);
-          }
 
 
         },

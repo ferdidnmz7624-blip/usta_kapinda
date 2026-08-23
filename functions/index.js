@@ -1,5 +1,5 @@
 const { onSchedule } = require("firebase-functions/v2/scheduler");
-const { onCall } = require("firebase-functions/v2/https");
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
 const {
   onDocumentCreated,
@@ -11,10 +11,35 @@ const { setGlobalOptions } = require("firebase-functions/v2");
 const nodemailer = require("nodemailer");
 const { defineSecret } = require("firebase-functions/params");
 const { google } = require("googleapis");
+const crypto = require("crypto");
 const EMAIL_PASSWORD = defineSecret("EMAIL_PASSWORD");
 
 function generateVerificationCode() {
   return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+const verificationPurposes = new Set([
+  "registration",
+  "login",
+  "password_reset",
+]);
+
+function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
+function verificationKey(email, purpose) {
+  return crypto
+      .createHash("sha256")
+      .update(`${purpose}:${normalizeEmail(email)}`)
+      .digest("hex");
+}
+
+function codeHash(email, purpose, code) {
+  return crypto
+      .createHash("sha256")
+      .update(`${normalizeEmail(email)}:${purpose}:${code}`)
+      .digest("hex");
 }
 
 admin.initializeApp();
@@ -732,22 +757,37 @@ exports.sendVerificationCodeEmail = onRequest(
   { secrets: [EMAIL_PASSWORD] },
   async (req, res) => {
     try {
-      const { email } = req.body;
+      const email = normalizeEmail(req.body.email);
+      const purpose = String(req.body.purpose || "registration");
 
-      if (!email) {
+      if (!email || !verificationPurposes.has(purpose)) {
         return res.status(400).json({
           success: false,
-          message: "E-posta gerekli.",
+          message: "Geçersiz doğrulama isteği.",
+        });
+      }
+
+      const verificationRef = admin.firestore()
+          .collection("email_verifications")
+          .doc(verificationKey(email, purpose));
+      const now = Date.now();
+      const previous = await verificationRef.get();
+      if (previous.exists && now - (previous.data().lastSentAt || 0) < 50 * 1000) {
+        return res.status(429).json({
+          success: false,
+          message: "Yeni kod için lütfen kısa süre bekleyin.",
         });
       }
 
       const code = generateVerificationCode();
-
-      await admin.firestore().collection("email_verifications").doc(email).set({
+      await verificationRef.set({
         email,
-        code,
+        purpose,
+        codeHash: codeHash(email, purpose, code),
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        expiresAt: Date.now() + 2 * 60 * 1000,
+        lastSentAt: now,
+        expiresAt: now + 2 * 60 * 1000,
+        attempts: 0,
       });
 
       const transporter = nodemailer.createTransport({
@@ -763,7 +803,7 @@ exports.sendVerificationCodeEmail = onRequest(
       await transporter.sendMail({
         from: '"Usta Kapında" <support@ustakapinda.org>',
         to: email,
-        subject: "E-posta Doğrulama Kodu",
+        subject: "Usta Kapında doğrulama kodu",
         html: `
           <h2>Usta Kapında</h2>
           <p>Doğrulama kodunuz:</p>
@@ -787,20 +827,21 @@ exports.sendVerificationCodeEmail = onRequest(
 );
 exports.verifyVerificationCode = onRequest(async (req, res) => {
   try {
-    const { email, code } = req.body;
+    const email = normalizeEmail(req.body.email);
+    const { code } = req.body;
+    const purpose = String(req.body.purpose || "registration");
 
-    if (!email || !code) {
+    if (!email || !code || !verificationPurposes.has(purpose)) {
       return res.status(400).json({
         success: false,
         message: "Eksik bilgi.",
       });
     }
 
-    const doc = await admin
-      .firestore()
-      .collection("email_verifications")
-      .doc(email)
-      .get();
+    const verificationRef = admin.firestore()
+        .collection("email_verifications")
+        .doc(verificationKey(email, purpose));
+    const doc = await verificationRef.get();
 
     if (!doc.exists) {
       return res.json({
@@ -818,23 +859,35 @@ exports.verifyVerificationCode = onRequest(async (req, res) => {
       });
     }
 
-    if (data.code !== code) {
+    if ((data.attempts || 0) >= 5) {
+      await verificationRef.delete();
+      return res.status(429).json({
+        success: false,
+        message: "Çok fazla hatalı deneme. Yeni kod isteyin.",
+      });
+    }
+
+    if (data.codeHash !== codeHash(email, purpose, code)) {
+      await verificationRef.update({
+        attempts: admin.firestore.FieldValue.increment(1),
+      });
       return res.json({
         success: false,
         message: "Kod yanlış.",
       });
     }
 
-    await admin
-      .firestore()
-      .collection("email_verifications")
-      .doc(email)
-      .delete();
-await admin
-  .firestore()
-  .collection("verificationCodes")
-  .doc(email)
-  .delete();
+    await verificationRef.delete();
+    if (purpose === "password_reset") {
+      const resetToken = crypto.randomBytes(32).toString("hex");
+      await admin.firestore().collection("password_reset_tokens")
+          .doc(verificationKey(email, purpose))
+          .set({
+            tokenHash: crypto.createHash("sha256").update(resetToken).digest("hex"),
+            expiresAt: Date.now() + 10 * 60 * 1000,
+          });
+      return res.json({ success: true, resetToken });
+    }
     return res.json({
       success: true,
     });
@@ -850,12 +903,26 @@ await admin
 });
 exports.resetPasswordWithCode = onRequest(async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const email = normalizeEmail(req.body.email);
+    const { password, resetToken } = req.body;
 
-    if (!email || !password) {
+    if (!email || !password || !resetToken || password.length < 6) {
       return res.status(400).json({
         success: false,
         message: "Eksik bilgi.",
+      });
+    }
+
+    const tokenRef = admin.firestore().collection("password_reset_tokens")
+        .doc(verificationKey(email, "password_reset"));
+    const tokenDoc = await tokenRef.get();
+    const suppliedHash = crypto.createHash("sha256")
+        .update(String(resetToken)).digest("hex");
+    if (!tokenDoc.exists || Date.now() > tokenDoc.data().expiresAt ||
+        tokenDoc.data().tokenHash !== suppliedHash) {
+      return res.status(403).json({
+        success: false,
+        message: "Parola sıfırlama oturumu geçersiz veya süresi dolmuş.",
       });
     }
 
@@ -864,6 +931,7 @@ exports.resetPasswordWithCode = onRequest(async (req, res) => {
     await admin.auth().updateUser(user.uid, {
       password: password,
     });
+    await tokenRef.delete();
 
     return res.json({
       success: true,
@@ -1281,6 +1349,13 @@ exports.payOfferWithTokens = onCall(async (request) => {
     const jobData = jobDoc.data();
     const budget = Number(jobData.budget);
 
+    if (jobData.userId === uid || jobData.status !== "active") {
+      throw new HttpsError(
+        "failed-precondition",
+        "Bu ilana teklif verilemez.",
+      );
+    }
+
     if (price < 1000) {
       throw new HttpsError(
         "invalid-argument",
@@ -1424,8 +1499,23 @@ transaction.set(
             throw new Error("Bu teklif size ait değil.");
           }
 
+          if (offer.status !== "pending") {
+            throw new HttpsError(
+              "failed-precondition",
+              "Yalnızca bekleyen teklifler kabul edilebilir.",
+            );
+          }
+
           await offerRef.update({
             status: "accepted",
+          });
+
+          await db.collection("notifications").add({
+            userId: offer.craftsmanId,
+            title: "Teklif kabul edildi",
+            body: `'${offer.jobTitle}' ilanındaki teklifiniz kabul edildi.`,
+            isRead: false,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
           });
 
           return {
@@ -1461,8 +1551,23 @@ transaction.set(
             throw new Error("Bu teklif size ait değil.");
           }
 
+          if (offer.status !== "pending") {
+            throw new HttpsError(
+              "failed-precondition",
+              "Yalnızca bekleyen teklifler reddedilebilir.",
+            );
+          }
+
           await offerRef.update({
             status: "rejected",
+          });
+
+          await db.collection("notifications").add({
+            userId: offer.craftsmanId,
+            title: "Teklif reddedildi",
+            body: `'${offer.jobTitle}' ilanındaki teklifiniz reddedildi.`,
+            isRead: false,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
           });
 
           return {
@@ -1578,6 +1683,26 @@ const transitions = {
 if (!(transitions[currentStatus] || []).includes(status)) {
   throw new Error("Bu durum değişikliğine izin verilmiyor.");
 }
+
+const isCustomer = offer.customerId === uid;
+const isCraftsman = offer.craftsmanId === uid;
+const permittedByRole =
+  (currentStatus === "pending" && isCustomer) ||
+  (currentStatus === "accepted" &&
+    ["in_progress", "cancelled"].includes(status) &&
+    (isCustomer || isCraftsman)) ||
+  (currentStatus === "in_progress" &&
+    ["completed", "cancelled"].includes(status) &&
+    (isCustomer || isCraftsman)) ||
+  (currentStatus === "completed" && status === "reviewed" &&
+    (isCustomer || isCraftsman));
+
+if (!permittedByRole) {
+  throw new HttpsError(
+    "permission-denied",
+    "Bu durum değişikliğine yetkiniz yok.",
+  );
+}
           const jobRef = db.collection("jobs").doc(offer.jobId);
           const jobStatusByOfferStatus = {
             in_progress: "in_progress",
@@ -1594,7 +1719,7 @@ if (!(transitions[currentStatus] || []).includes(status)) {
             }
           });
 
-          if (status === "cancelled") {
+          if (["completed", "cancelled"].includes(status)) {
             const chatRef = db.collection("chats").doc(offer.jobId);
             const messages = await chatRef.collection("messages").get();
             await Promise.all(messages.docs.map((message) => message.ref.delete()));
@@ -1602,6 +1727,110 @@ if (!(transitions[currentStatus] || []).includes(status)) {
           }
 
           return { success: true };
+        });
+        exports.submitReview = onCall(async (request) => {
+          if (!request.auth) {
+            throw new HttpsError(
+              "unauthenticated",
+              "Giriş yapmanız gerekiyor.",
+            );
+          }
+
+          const { jobId, reviewerType, rating, comment } = request.data;
+          const uid = request.auth.uid;
+          if (
+            typeof jobId !== "string" ||
+            !["customer", "craftsman"].includes(reviewerType) ||
+            typeof rating !== "number" ||
+            rating < 1 || rating > 5 || rating % 1 !== 0 ||
+            typeof comment !== "string" ||
+            comment.trim().length === 0 || comment.length > 1000
+          ) {
+            throw new HttpsError(
+              "invalid-argument",
+              "Geçersiz değerlendirme bilgisi.",
+            );
+          }
+
+          const db = admin.firestore();
+          const offers = await db.collection("offers")
+              .where("jobId", "==", jobId)
+              .get();
+          const offerDoc = offers.docs.find((doc) => {
+            const offer = doc.data();
+            return reviewerType === "customer" ?
+              offer.customerId === uid : offer.craftsmanId === uid;
+          });
+
+          if (!offerDoc) {
+            throw new HttpsError(
+              "permission-denied",
+              "Bu iş için değerlendirme yapma yetkiniz yok.",
+            );
+          }
+
+          const reviewer = reviewerType === "customer" ?
+            "customer" : "craftsman";
+          const offerRef = offerDoc.ref;
+          const reviewerDoc = await db.collection("users").doc(uid).get();
+          const reviewerData = reviewerDoc.data() || {};
+          const reviewRef = db.collection("reviews").doc();
+
+          await db.runTransaction(async (transaction) => {
+            const currentOfferDoc = await transaction.get(offerRef);
+            if (!currentOfferDoc.exists) {
+              throw new HttpsError("not-found", "Teklif bulunamadı.");
+            }
+
+            const offer = currentOfferDoc.data();
+            const isExpectedReviewer = reviewer === "customer" ?
+              offer.customerId === uid : offer.craftsmanId === uid;
+            const reviewFlag = reviewer === "customer" ?
+              "customerReviewed" : "craftsmanReviewed";
+            if (
+              !isExpectedReviewer ||
+              !["completed", "reviewed"].includes(offer.status) ||
+              offer[reviewFlag] === true
+            ) {
+              throw new HttpsError(
+                "failed-precondition",
+                "Bu değerlendirme artık gönderilemez.",
+              );
+            }
+
+            const targetUserId = reviewer === "customer" ?
+              offer.craftsmanId : offer.customerId;
+            const reviewData = {
+              id: reviewRef.id,
+              customerId: offer.customerId,
+              craftsmanId: offer.craftsmanId,
+              jobId: offer.jobId,
+              reviewerType: reviewer,
+              reviewerId: uid,
+              rating,
+              comment: comment.trim(),
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            };
+
+            transaction.create(reviewRef, reviewData);
+            transaction.set(
+                db.collection("users").doc(targetUserId)
+                    .collection("reviews").doc(reviewRef.id),
+                {
+                  ...reviewData,
+                  userName: `${reviewerData.firstName || ""} ${reviewerData.lastName || ""}`.trim(),
+                  userPhoto: reviewerData.profilePhoto || "",
+                },
+            );
+            transaction.update(offerRef, {
+              [reviewFlag]: true,
+              status: (reviewer === "customer" ?
+                offer.craftsmanReviewed : offer.customerReviewed) === true ?
+                "reviewed" : offer.status,
+            });
+          });
+
+          return {success: true, reviewId: reviewRef.id};
         });
         exports.sendMessage = onCall(async (request) => {
 
@@ -1624,9 +1853,60 @@ if (!(transitions[currentStatus] || []).includes(status)) {
             throw new Error("Yetkiniz yok.");
           }
 
+          if (
+            typeof message !== "string" ||
+            message.trim().length === 0 ||
+            message.length > 4000
+          ) {
+            throw new HttpsError(
+              "invalid-argument",
+              "Geçersiz mesaj.",
+            );
+          }
+
           const db = admin.firestore();
 
           const chatRef = db.collection("chats").doc(chatId);
+
+          const chatDoc = await chatRef.get();
+          if (!chatDoc.exists) {
+            throw new HttpsError("not-found", "Sohbet bulunamadı.");
+          }
+
+          const chat = chatDoc.data();
+          const chatUsers = Array.isArray(chat.users) ? chat.users : [];
+          if (
+            !chatUsers.includes(senderId) ||
+            !chatUsers.includes(receiverId) ||
+            senderId === receiverId
+          ) {
+            throw new HttpsError(
+              "permission-denied",
+              "Bu sohbete mesaj gönderme yetkiniz yok.",
+            );
+          }
+
+          const offerSnapshot = await db
+              .collection("offers")
+              .where("jobId", "==", chat.jobId)
+              .get();
+
+          const chatOffer = offerSnapshot.docs
+              .map((doc) => doc.data())
+              .find((offer) =>
+                offer.customerId === chat.customerId &&
+                offer.craftsmanId === chat.craftsmanId,
+              );
+
+          if (!chatOffer || ![
+            "accepted",
+            "in_progress",
+          ].includes(chatOffer.status)) {
+            throw new HttpsError(
+              "failed-precondition",
+              "Bu iş için mesajlaşma kapalı.",
+            );
+          }
 
           await chatRef.collection("messages").add({
             senderId,
@@ -1639,7 +1919,6 @@ if (!(transitions[currentStatus] || []).includes(status)) {
           await chatRef.set({
             lastMessage: message,
             lastMessageTime: admin.firestore.FieldValue.serverTimestamp(),
-            users: [senderId, receiverId],
             unreadCount: {
               [receiverId]: admin.firestore.FieldValue.increment(1),
               [senderId]: 0,
@@ -1651,6 +1930,33 @@ if (!(transitions[currentStatus] || []).includes(status)) {
             success: true,
           };
 
+        });
+        exports.clearChatForUser = onCall(async (request) => {
+          if (!request.auth) {
+            throw new HttpsError("unauthenticated", "Giriş yapmanız gerekiyor.");
+          }
+
+          const {chatId, hideFromList = false} = request.data;
+          if (typeof chatId !== "string" || typeof hideFromList !== "boolean") {
+            throw new HttpsError("invalid-argument", "Geçersiz sohbet isteği.");
+          }
+
+          const chatRef = admin.firestore().collection("chats").doc(chatId);
+          const chatDoc = await chatRef.get();
+          if (!chatDoc.exists || !Array.isArray(chatDoc.data().users) ||
+              !chatDoc.data().users.includes(request.auth.uid)) {
+            throw new HttpsError("permission-denied", "Bu sohbete erişim yetkiniz yok.");
+          }
+
+          const uid = request.auth.uid;
+          const update = {
+            [`clearedBy.${uid}`]: admin.firestore.FieldValue.serverTimestamp(),
+          };
+          if (hideFromList) {
+            update[`deletedBy.${uid}`] = true;
+          }
+          await chatRef.update(update);
+          return {success: true};
         });
         exports.openChatForOffer = onCall(async (request) => {
           if (!request.auth) {
@@ -1718,7 +2024,7 @@ if (!(transitions[currentStatus] || []).includes(status)) {
             chatId: offer.jobId,
           };
         });
-        exports.getEmailByPhone = onCall(async (request) => {
+exports.getEmailByPhone = onCall(async (request) => {
           try {
             const { phone } = request.data;
 
@@ -1726,40 +2032,31 @@ if (!(transitions[currentStatus] || []).includes(status)) {
               throw new Error("Telefon numarası gerekli.");
             }
 
-            let cleanPhone = String(phone)
-                .replace(/\s/g, "")
-                .replace(/-/g, "")
-                .replace(/\(/g, "")
-                .replace(/\)/g, "");
-
-            if (cleanPhone.startsWith("0")) {
+            let cleanPhone = String(phone).replace(/\D/g, "");
+            if (cleanPhone.startsWith("90") && cleanPhone.length === 12) {
+              cleanPhone = cleanPhone.substring(2);
+            }
+            if (cleanPhone.startsWith("0") && cleanPhone.length === 11) {
               cleanPhone = cleanPhone.substring(1);
             }
-
-            const snapshot = await admin
-                .firestore()
-                .collection("users")
-            .where("phone", "==", cleanPhone)
-                .limit(1)
-                .get();
-
-            if (snapshot.empty) {
+            if (cleanPhone.length !== 10) {
               return {
                 success: false,
-                message: "Telefon bulunamadı.",
+                message: "Geçersiz telefon numarası.",
               };
             }
-
-            const data = snapshot.docs[0].data();
-logger.info("PHONE FOUND: " + cleanPhone);
-logger.info(JSON.stringify(data));
+            // Yalnızca Firebase Auth'ta SMS ile doğrulanıp hesaba bağlanmış
+            // telefonlar giriş tanımlayıcısı olarak kullanılabilir.
+            const authUser = await admin.auth().getUserByPhoneNumber(`+90${cleanPhone}`);
             return {
               success: true,
-             email: data["email"],
+              email: authUser.email,
             };
 
           } catch (e) {
-            logger.error(e);
+            if (e.code !== "auth/user-not-found") {
+              logger.error(e);
+            }
 
             return {
               success: false,
@@ -1767,23 +2064,116 @@ logger.info(JSON.stringify(data));
             };
           }
         });
+        exports.linkAccounts = onCall(async (request) => {
+          if (!request.auth) {
+            throw new HttpsError("unauthenticated", "Oturum açmanız gerekiyor.");
+          }
+
+          const sourceIdToken = String(request.data?.sourceIdToken || "");
+          if (!sourceIdToken) {
+            throw new HttpsError(
+                "invalid-argument",
+                "Bağlanacak hesap için oturum kanıtı gerekli.",
+            );
+          }
+
+          let sourceToken;
+          try {
+            sourceToken = await admin.auth().verifyIdToken(sourceIdToken);
+          } catch (_) {
+            throw new HttpsError(
+                "permission-denied",
+                "Bağlanacak hesabın oturumu doğrulanamadı.",
+            );
+          }
+
+          const sourceUid = sourceToken.uid;
+          const targetUid = request.auth.uid;
+          if (sourceUid === targetUid) {
+            throw new HttpsError(
+                "failed-precondition",
+                "Aynı hesap kendi kendisiyle bağlanamaz.",
+            );
+          }
+
+          const db = admin.firestore();
+          await db.runTransaction(async (transaction) => {
+            const sourceRef = db.collection("users").doc(sourceUid);
+            const targetRef = db.collection("users").doc(targetUid);
+            const [sourceSnapshot, targetSnapshot] = await Promise.all([
+              transaction.get(sourceRef),
+              transaction.get(targetRef),
+            ]);
+
+            if (!sourceSnapshot.exists || !targetSnapshot.exists) {
+              throw new HttpsError(
+                  "not-found",
+                  "Bağlanacak hesaplardan biri bulunamadı.",
+              );
+            }
+
+            const source = sourceSnapshot.data();
+            const target = targetSnapshot.data();
+            const sourceType = source.accountType;
+            const targetType = target.accountType;
+            if (!(["customer", "craftsman"].includes(sourceType)) ||
+                !(["customer", "craftsman"].includes(targetType)) ||
+                sourceType === targetType) {
+              throw new HttpsError(
+                  "failed-precondition",
+                  "Müşteri ve usta hesabı birbirinden farklı olmalıdır.",
+              );
+            }
+
+            const customer = sourceType === "customer" ? source : target;
+            const craftsman = sourceType === "craftsman" ? source : target;
+            const customerUid = sourceType === "customer" ? sourceUid : targetUid;
+            const craftsmanUid = sourceType === "craftsman" ? sourceUid : targetUid;
+
+            if ((customer.linkedCraftsmanUid || "") &&
+                customer.linkedCraftsmanUid !== craftsmanUid) {
+              throw new HttpsError(
+                  "already-exists",
+                  "Müşteri hesabı başka bir usta hesabına bağlı.",
+              );
+            }
+            if ((craftsman.linkedCustomerUid || "") &&
+                craftsman.linkedCustomerUid !== customerUid) {
+              throw new HttpsError(
+                  "already-exists",
+                  "Usta hesabı başka bir müşteri hesabına bağlı.",
+              );
+            }
+
+            transaction.update(db.collection("users").doc(customerUid), {
+              linkedCraftsmanUid: craftsmanUid,
+              linkedCraftsmanEmail: String(craftsman.email || ""),
+            });
+            transaction.update(db.collection("users").doc(craftsmanUid), {
+              linkedCustomerUid: customerUid,
+              linkedCustomerEmail: String(customer.email || ""),
+            });
+          });
+
+          return { success: true };
+        });
         exports.checkRegistrationAvailability = onCall(async (request) => {
           try {
             const { email, phone } = request.data;
 
-            if (!email || !phone) {
+            if (!email) {
               return {
                 success: false,
                 emailExists: false,
                 phoneExists: false,
-                message: "E-posta ve telefon gerekli.",
+                message: "E-posta gerekli.",
               };
             }
 
             const cleanEmail = String(email).trim().toLowerCase();
 
             // TELEFONU TEK FORMATA ÇEVİR
-            let cleanPhone = String(phone).replace(/\D/g, "");
+            let cleanPhone = String(phone || "").replace(/\D/g, "");
 
             // +90 / 90 / 0 farklarını kaldır
             if (cleanPhone.startsWith("90") && cleanPhone.length >= 12) {
@@ -1813,12 +2203,12 @@ logger.info(JSON.stringify(data));
             }
 
             // TELEFON KONTROLÜ
-            const phoneVariants = [
-              cleanPhone,
-              "0" + cleanPhone,
-              "90" + cleanPhone,
-              "+90" + cleanPhone,
-            ];
+            const phoneVariants = cleanPhone ? [
+                cleanPhone,
+                "0" + cleanPhone,
+                "90" + cleanPhone,
+                "+90" + cleanPhone,
+            ] : [];
 
             const usersSnapshot = await admin
                 .firestore()
@@ -1826,6 +2216,7 @@ logger.info(JSON.stringify(data));
                 .get();
 
             for (const doc of usersSnapshot.docs) {
+              if (!cleanPhone) break;
               const user = doc.data();
 
               if (!user.phone) continue;
@@ -1909,7 +2300,6 @@ exports.verifyGooglePlayTokenPurchase = onCall(async (request) => {
   }
 
   const auth = new google.auth.GoogleAuth({
-    credentials: serviceAccount,
     scopes: [
       "https://www.googleapis.com/auth/androidpublisher",
     ],

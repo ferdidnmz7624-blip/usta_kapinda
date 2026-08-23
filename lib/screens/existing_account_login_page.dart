@@ -1,128 +1,168 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../models/user_model.dart';
+import '../services/google_auth_service.dart';
 import '../services/user_service.dart';
 import '../generated/app_localizations.dart';
 import 'mode_router_page.dart';
+import 'login_otp_page.dart';
 
 class ExistingAccountLoginPage extends StatefulWidget {
   final String accountType;
 
-  const ExistingAccountLoginPage({
-    super.key,
-    required this.accountType,
-  });
+  const ExistingAccountLoginPage({super.key, required this.accountType});
 
   @override
   State<ExistingAccountLoginPage> createState() =>
       _ExistingAccountLoginPageState();
 }
 
-class _ExistingAccountLoginPageState
-    extends State<ExistingAccountLoginPage> {
+class _ExistingAccountLoginPageState extends State<ExistingAccountLoginPage> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   final UserService _userService = UserService();
   final FirebaseAuth _auth = FirebaseAuth.instance;
   bool hidePassword = true;
   bool _isLoading = false;
+  String? _sourceUid;
+  String? _sourceIdToken;
+  UserModel? _sourceUser;
+
+  Future<bool> _prepareSourceAccount() async {
+    if (_sourceUid != null && _sourceUser != null) return true;
+
+    final signedInUser = _auth.currentUser;
+    if (signedInUser == null) return false;
+
+    final sourceUser = await _userService.getUser(signedInUser.uid);
+    if (sourceUser == null) return false;
+
+    _sourceUid = signedInUser.uid;
+    _sourceUser = sourceUser;
+    _sourceIdToken = await signedInUser.getIdToken();
+    return true;
+  }
+
+  Future<void> _linkSignedInAccount(UserCredential result) async {
+    final l10n = AppLocalizations.of(context)!;
+    final currentUser = _sourceUser;
+    final linkedUid = result.user?.uid;
+
+    if (currentUser == null || linkedUid == null || _sourceIdToken == null) {
+      throw StateError(l10n.loginFailed);
+    }
+
+    if (_sourceUid == linkedUid) {
+      throw StateError('Aynı hesap kendi kendisiyle bağlanamaz.');
+    }
+
+    final linkedUser = await _userService.getUser(linkedUid);
+    if (linkedUser == null) {
+      throw StateError(l10n.userInfoNotFound);
+    }
+
+    if (linkedUser.accountType != widget.accountType) {
+      final targetName = widget.accountType == 'craftsman' ? 'usta' : 'müşteri';
+      throw StateError('Seçilen hesap bir $targetName hesabı değil.');
+    }
+
+    await _userService.linkAccounts(sourceIdToken: _sourceIdToken!);
+
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const ModeRouterPage()),
+      (route) => false,
+    );
+  }
 
   Future<void> loginAndLinkAccount() async {
-    final signedInUser = _auth.currentUser;
-    if (signedInUser == null) {
-      _showLoginError();
+    final l10n = AppLocalizations.of(context)!;
+    if (emailController.text.trim().isEmpty ||
+        passwordController.text.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.loginEmailOrPhoneRequired)));
       return;
     }
 
-    final currentUid = signedInUser.uid;
-    final l10n = AppLocalizations.of(context)!;
-
     try {
       setState(() => _isLoading = true);
+      if (!await _prepareSourceAccount()) {
+        throw StateError(l10n.loginFailed);
+      }
+
       await _auth.signOut();
-
-      final result = await _auth.signInWithEmailAndPassword(
+      await _auth.signInWithEmailAndPassword(
         email: emailController.text.trim(),
-        password: passwordController.text.trim(),
+        password: passwordController.text,
       );
-
-      final linkedUid = result.user!.uid;
-
-      final currentUser =
-      await _userService.getUser(currentUid);
-
-      final linkedUser =
-      await _userService.getUser(linkedUid);
-
-      if (currentUser == null || linkedUser == null) {
-        if (!mounted) return;
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(l10n.userInfoNotFound),
-          ),
-        );
-        return;
-      }
-
-      if (widget.accountType == "craftsman") {
-        await _userService.updateLinkedAccounts(
-          uid: currentUid,
-          linkedCraftsmanUid: linkedUid,
-          linkedCraftsmanEmail: linkedUser.email,
-        );
-
-        await _userService.updateLinkedAccounts(
-          uid: linkedUid,
-          linkedCustomerUid: currentUid,
-          linkedCustomerEmail: currentUser.email,
-        );
-      } else {
-        await _userService.updateLinkedAccounts(
-          uid: currentUid,
-          linkedCustomerUid: linkedUid,
-          linkedCustomerEmail: linkedUser.email,
-        );
-
-        await _userService.updateLinkedAccounts(
-          uid: linkedUid,
-          linkedCraftsmanUid: currentUid,
-          linkedCraftsmanEmail: currentUser.email,
-        );
-      }
-
+      // Şifreyi doğruladıktan sonra da ana girişteki gibi e-posta OTP'si
+      // zorunludur. Böylece ikinci hesabı bağlama ekranı OTP'yi atlayamaz.
+      await _auth.signOut();
       if (!mounted) return;
-
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const ModeRouterPage()),
-        (route) => false,
-      );
-    } on FirebaseAuthException catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-              e.message ?? l10n.loginFailed
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => LoginOtpPage(
+            email: emailController.text.trim(),
+            password: passwordController.text,
+            phoneLogin: false,
+            onAuthenticated: _linkSignedInAccount,
           ),
         ),
       );
+    } on FirebaseAuthException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.message ?? l10n.loginFailed)));
+      }
+    } on StateError catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.message.toString())));
+      }
     } catch (_) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.loginFailed)),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.loginFailed)));
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  void _showLoginError() {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(AppLocalizations.of(context)!.loginFailed)),
-    );
+  Future<void> loginWithGoogleAndLinkAccount() async {
+    final l10n = AppLocalizations.of(context)!;
+    try {
+      setState(() => _isLoading = true);
+      if (!await _prepareSourceAccount()) {
+        throw StateError(l10n.loginFailed);
+      }
+
+      await _auth.signOut();
+      final result = await GoogleAuthService().signInWithGoogle(
+        createProfileIfMissing: false,
+      );
+      if (result == null) return;
+      await _linkSignedInAccount(result);
+    } on StateError catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.message.toString())));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.loginFailed)));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -137,9 +177,7 @@ class _ExistingAccountLoginPageState
     final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.existingAccountLogin),
-      ),
+      appBar: AppBar(title: Text(l10n.existingAccountLogin)),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -162,9 +200,7 @@ class _ExistingAccountLoginPageState
                 prefixIcon: const Icon(Icons.lock_outline),
                 suffixIcon: IconButton(
                   icon: Icon(
-                    hidePassword
-                        ? Icons.visibility_off
-                        : Icons.visibility,
+                    hidePassword ? Icons.visibility_off : Icons.visibility,
                   ),
                   onPressed: () {
                     setState(() {
@@ -199,6 +235,18 @@ class _ExistingAccountLoginPageState
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Text("Giriş Yap"),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            SizedBox(
+              width: double.infinity,
+              height: 55,
+              child: OutlinedButton.icon(
+                onPressed: _isLoading ? null : loginWithGoogleAndLinkAccount,
+                icon: const Icon(Icons.g_mobiledata),
+                label: const Text('Google ile giriş yap'),
               ),
             ),
           ],

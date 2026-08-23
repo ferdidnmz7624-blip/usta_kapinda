@@ -23,14 +23,24 @@ class ModeRouterPage extends StatelessWidget {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
-            body: Center(
-              child: CircularProgressIndicator(),
-            ),
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return _ProfileUnavailable(
+            message:
+                'Profiliniz yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin.',
           );
         }
 
         if (!snapshot.hasData || snapshot.data == null) {
-          return const LoginPage();
+          // Yeni kayıtta Auth oturumu, Firestore profilinden önce hazır olur.
+          // Profil yazımı başarısız kalırsa kullanıcı ekranda sonsuza dek beklemez.
+          return const _ProfileUnavailable(
+            message:
+                'Profiliniz hazırlanıyor. Bu ekran uzun sürerse tekrar giriş yapın.',
+          );
         }
 
         final user = snapshot.data!;
@@ -41,6 +51,36 @@ class ModeRouterPage extends StatelessWidget {
 
         return const CustomerMainPage();
       },
+    );
+  }
+}
+
+class _ProfileUnavailable extends StatelessWidget {
+  final String message;
+
+  const _ProfileUnavailable({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 20),
+              Text(message, textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              OutlinedButton(
+                onPressed: () => FirebaseAuth.instance.signOut(),
+                child: const Text('Çıkış yap'),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

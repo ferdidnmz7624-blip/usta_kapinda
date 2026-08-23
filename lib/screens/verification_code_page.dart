@@ -15,9 +15,11 @@ class VerificationCodePage extends StatefulWidget {
   final String email;
   final String phone;
   final String password;
+  final PhoneAuthCredential? phoneCredential;
 
   final String accountType;
   final String? linkedUid;
+  final String? sourceIdToken;
 
   final String city;
   final String district;
@@ -34,9 +36,11 @@ class VerificationCodePage extends StatefulWidget {
     required this.email,
     required this.phone,
     required this.password,
+    this.phoneCredential,
 
     required this.accountType,
     this.linkedUid,
+    this.sourceIdToken,
 
     required this.city,
     required this.district,
@@ -50,172 +54,176 @@ class VerificationCodePage extends StatefulWidget {
   });
 
   @override
-  State<VerificationCodePage> createState() =>
-      _VerificationCodePageState();
+  State<VerificationCodePage> createState() => _VerificationCodePageState();
 }
 
-class _VerificationCodePageState
-    extends State<VerificationCodePage> {
+class _VerificationCodePageState extends State<VerificationCodePage> {
+  final List<TextEditingController> controllers = List.generate(
+    6,
+    (_) => TextEditingController(),
+  );
 
-  final List<TextEditingController> controllers =
-  List.generate(6, (_) => TextEditingController());
-
-  final List<FocusNode> focusNodes =
-  List.generate(6, (_) => FocusNode());
+  final List<FocusNode> focusNodes = List.generate(6, (_) => FocusNode());
   int remainingSeconds = 50;
   bool canResend = false;
+  bool _isVerifying = false;
 
   int verificationExpireSeconds = 120;
   Future<void> verifyCode() async {
+    if (_isVerifying) return;
+
     final l10n = AppLocalizations.of(context)!;
 
     final code = controllers.map((e) => e.text).join();
     if (code.length != 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(l10n.enterSixDigitCode),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.enterSixDigitCode)));
       return;
     }
 
-    final response = await http.post(
-      Uri.parse(
-        "https://europe-west1-usta-kapinda-e9ea7.cloudfunctions.net/verifyVerificationCode",
-      ),
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: jsonEncode({
-        "email": widget.email,
-        "code": code,
-      }),
-    );
+    setState(() => _isVerifying = true);
 
-    final data = jsonDecode(response.body);
+    try {
+      final response = await http.post(
+        Uri.parse(
+          "https://europe-west1-usta-kapinda-e9ea7.cloudfunctions.net/verifyVerificationCode",
+        ),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "email": widget.email,
+          "code": code,
+          "purpose": widget.isResetPassword ? "password_reset" : "registration",
+        }),
+      );
 
-    if (data["success"] == true) {
-      if (!mounted) return;
-      if (widget.isResetPassword) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => NewPasswordPage(
-              email: widget.email,
+      if (response.statusCode != 200) {
+        throw Exception('Doğrulama servisine ulaşılamadı.');
+      }
+
+      final data = jsonDecode(response.body);
+
+      if (data["success"] == true) {
+        if (!mounted) return;
+        if (widget.isResetPassword) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => NewPasswordPage(
+                email: widget.email,
+                resetToken: data["resetToken"] as String,
+              ),
             ),
-          ),
+          );
+          return;
+        }
+        final auth = FirebaseAuth.instance;
+        final userService = UserService();
+
+        final result = await auth.createUserWithEmailAndPassword(
+          email: widget.email,
+          password: widget.password,
         );
-        return;
-      }
-      final auth = FirebaseAuth.instance;
-      final userService = UserService();
+        final user = UserModel(
+          uid: result.user!.uid,
+          accountType: widget.accountType,
 
-      final result =
-      await auth.createUserWithEmailAndPassword(
-        email: widget.email,
-        password: widget.password,
-      );
-      final user = UserModel(
-        uid: result.user!.uid,
-        accountType: widget.accountType,
+          customerProfile: widget.accountType == "customer",
+          craftsmanProfile: widget.accountType == "craftsman",
+          activeMode: widget.accountType,
 
-        customerProfile: widget.accountType == "customer",
-        craftsmanProfile: widget.accountType == "craftsman",
-        activeMode: widget.accountType,
+          linkedCustomerUid: widget.accountType == "craftsman"
+              ? widget.linkedUid ?? ""
+              : "",
 
-        linkedCustomerUid:
-        widget.accountType == "craftsman"
-            ? widget.linkedUid ?? ""
-            : "",
+          linkedCraftsmanUid: widget.accountType == "customer"
+              ? widget.linkedUid ?? ""
+              : "",
 
-        linkedCraftsmanUid:
-        widget.accountType == "customer"
-            ? widget.linkedUid ?? ""
-            : "",
+          linkedCustomerEmail: "",
+          linkedCraftsmanEmail: "",
 
-        linkedCustomerEmail: "",
-        linkedCraftsmanEmail: "",
+          firstName: widget.firstName,
+          lastName: widget.lastName,
+          email: widget.email,
+          phone: widget.phone,
 
-        firstName: widget.firstName,
-        lastName: widget.lastName,
-        email: widget.email,
-        phone: widget.phone,
+          city: widget.city,
+          district: widget.district,
+          neighborhood: widget.neighborhood,
+          address: widget.address,
 
-        city: widget.city,
-        district: widget.district,
-        neighborhood: widget.neighborhood,
-        address: widget.address,
+          professions: widget.professions,
+          experience: widget.experience,
+          about: widget.about,
 
-        professions: widget.professions,
-        experience: widget.experience,
-        about: widget.about,
-
-        profilePhoto: "",
-        rating: 5,
-        completedJobs: 0,
-        tokens: 0,
-        isFrozen: false,
-        isDeleting: false,
-        deleteAt: null,
-        createdAt: DateTime.now(),
-        isOnline: false,
-        lastSeen: null,
-      );
-
-      await userService.saveUser(user);
-      if (widget.linkedUid != null &&
-          widget.linkedUid!.isNotEmpty) {
-        await userService.updateLinkedAccounts(
-          uid: widget.linkedUid!,
-
-          linkedCustomerUid:
-          widget.accountType == "customer"
-              ? result.user!.uid
-              : null,
-
-          linkedCraftsmanUid:
-          widget.accountType == "craftsman"
-              ? result.user!.uid
-              : null,
-
-          linkedCustomerEmail:
-          widget.accountType == "customer"
-              ? widget.email
-              : null,
-
-          linkedCraftsmanEmail:
-          widget.accountType == "craftsman"
-              ? widget.email
-              : null,
+          profilePhoto: "",
+          rating: 5,
+          completedJobs: 0,
+          tokens: 0,
+          isFrozen: false,
+          isDeleting: false,
+          deleteAt: null,
+          createdAt: DateTime.now(),
+          isOnline: false,
+          lastSeen: null,
         );
-      }
+
+        if (widget.phoneCredential != null) {
+          try {
+            await result.user!.linkWithCredential(widget.phoneCredential!);
+          } on FirebaseAuthException {
+            await result.user!.delete();
+            rethrow;
+          }
+        }
+        await userService.saveUser(user);
+        // Firestore profili gerçekten erişilebilir olmadan ana ekrana geçme.
+        // Böylece yeni kullanıcı ilk açılışta boş/yükleniyor ekranda kalmaz.
+        final savedUser = await userService.getUser(result.user!.uid);
+        if (savedUser == null) {
+          throw StateError('Kullanıcı profili oluşturulamadı.');
+        }
+
+        if (widget.sourceIdToken != null && widget.sourceIdToken!.isNotEmpty) {
+          await userService.linkAccounts(sourceIdToken: widget.sourceIdToken!);
+        }
         if (!mounted) return;
 
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const ModeRouterPage(),
-          ),
-              (route) => false,
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const ModeRouterPage()),
+          (route) => false,
         );
 
         return;
-    }
-else if (data["expired"] == true) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text(l10n.codeExpired),
-    ),
-  );
-} else {
-  ScaffoldMessenger.of(context).showSnackBar(
-     SnackBar(
-      content: Text(l10n.invalidCode),
-    ),
-  );
-}
+      } else if (data["expired"] == true) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.codeExpired)));
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.invalidCode)));
+      }
+    } on FirebaseAuthException catch (error) {
+      if (!mounted) return;
 
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message ?? l10n.registrationFailed)),
+      );
+    } catch (_) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.registrationFailed)));
+    } finally {
+      if (mounted) {
+        setState(() => _isVerifying = false);
+      }
+    }
   }
+
   @override
   void initState() {
     super.initState();
@@ -246,6 +254,7 @@ else if (data["expired"] == true) {
       return true;
     });
   }
+
   @override
   void dispose() {
     for (final c in controllers) {
@@ -265,16 +274,12 @@ else if (data["expired"] == true) {
 
     return Scaffold(
       backgroundColor: const Color(0xfff4f7fb),
-      appBar: AppBar(
-        title: Text(l10n.emailVerification),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: Text(l10n.emailVerification), centerTitle: true),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
             children: [
-
               const SizedBox(height: 20),
 
               Container(
@@ -302,10 +307,7 @@ else if (data["expired"] == true) {
 
               Text(
                 l10n.emailVerification,
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
               ),
 
               const SizedBox(height: 15),
@@ -313,10 +315,7 @@ else if (data["expired"] == true) {
               Text(
                 l10n.verificationCodeSent(widget.email),
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey,
-                ),
+                style: const TextStyle(fontSize: 16, color: Colors.grey),
               ),
 
               const SizedBox(height: 15),
@@ -358,13 +357,15 @@ else if (data["expired"] == true) {
                       ),
                       onChanged: (value) {
                         if (value.isNotEmpty && index < 5) {
-                          FocusScope.of(context)
-                              .requestFocus(focusNodes[index + 1]);
+                          FocusScope.of(
+                            context,
+                          ).requestFocus(focusNodes[index + 1]);
                         }
 
                         if (value.isEmpty && index > 0) {
-                          FocusScope.of(context)
-                              .requestFocus(focusNodes[index - 1]);
+                          FocusScope.of(
+                            context,
+                          ).requestFocus(focusNodes[index - 1]);
                         }
                       },
                     ),
@@ -377,7 +378,7 @@ else if (data["expired"] == true) {
                 width: double.infinity,
                 height: 55,
                 child: ElevatedButton(
-                  onPressed: verifyCode,
+                  onPressed: _isVerifying ? null : verifyCode,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.orange,
                     foregroundColor: Colors.white,
@@ -385,13 +386,22 @@ else if (data["expired"] == true) {
                       borderRadius: BorderRadius.circular(15),
                     ),
                   ),
-                  child: Text(
-                    l10n.verifyCode,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  child: _isVerifying
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(
+                          l10n.verifyCode,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
               ),
               const SizedBox(height: 20),
@@ -400,10 +410,7 @@ else if (data["expired"] == true) {
                 canResend
                     ? l10n.requestNewCode
                     : l10n.newCodeInSeconds(remainingSeconds),
-                style: const TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey,
-                ),
+                style: const TextStyle(fontSize: 16, color: Colors.grey),
               ),
               const SizedBox(height: 8),
 
@@ -415,45 +422,46 @@ else if (data["expired"] == true) {
                 ),
               ),
               const SizedBox(height: 15),
-TextButton(
-onPressed: canResend
-? () async {
-final response = await http.post(
-Uri.parse(
-"https://europe-west1-usta-kapinda-e9ea7.cloudfunctions.net/sendVerificationCodeEmail",
-),
-headers: {
-"Content-Type": "application/json",
-},
-body: jsonEncode({
-"email": widget.email,
-}),
-);
+              TextButton(
+                onPressed: canResend
+                    ? () async {
+                        final response = await http.post(
+                          Uri.parse(
+                            "https://europe-west1-usta-kapinda-e9ea7.cloudfunctions.net/sendVerificationCodeEmail",
+                          ),
+                          headers: {"Content-Type": "application/json"},
+                          body: jsonEncode({
+                            "email": widget.email,
+                            "purpose": widget.isResetPassword
+                                ? "password_reset"
+                                : "registration",
+                          }),
+                        );
 
-if (response.statusCode == 200) {
-ScaffoldMessenger.of(context).showSnackBar(
-SnackBar(
-content: Text(l10n.newVerificationCodeSent),
-),
-);
+                        if (response.statusCode == 200) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(l10n.newVerificationCodeSent),
+                            ),
+                          );
 
-setState(() {
-remainingSeconds = 50;
-canResend = false;
-});
+                          setState(() {
+                            remainingSeconds = 50;
+                            canResend = false;
+                          });
 
-startTimer();
-}
-}
-: null,
-child: Text(
-l10n.resendCode,
-style: const TextStyle(
-fontSize: 16,
-fontWeight: FontWeight.bold,
-),
-),
-),
+                          startTimer();
+                        }
+                      }
+                    : null,
+                child: Text(
+                  l10n.resendCode,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
               const SizedBox(height: 20),
 
               TextButton(

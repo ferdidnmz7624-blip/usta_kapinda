@@ -88,6 +88,8 @@ class UserModel {
       "activeMode": activeMode,
       "linkedCustomerUid": linkedCustomerUid,
       "linkedCraftsmanUid": linkedCraftsmanUid,
+      "linkedCustomerEmail": linkedCustomerEmail,
+      "linkedCraftsmanEmail": linkedCraftsmanEmail,
       "firstName": firstName,
       "lastName": lastName,
       "email": email,

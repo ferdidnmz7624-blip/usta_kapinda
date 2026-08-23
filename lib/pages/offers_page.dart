@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import '../models/offer_model.dart';
 
 import '../services/chat_service.dart';
-import '../services/notification_service.dart';
 import '../services/offer_service.dart';
 
 import 'chat_page.dart';
@@ -23,8 +22,6 @@ State<OffersPage> createState() => _OffersPageState();
 class _OffersPageState extends State<OffersPage> {
 final OfferService _offerService = OfferService();
 final ChatService _chatService = ChatService();
-final NotificationService _notificationService =
-NotificationService();
 
 String? _loadingAcceptOfferId;
 String? _loadingProgressOfferId;
@@ -309,16 +306,6 @@ await _offerService
 offer.id,
 );
 
-await _notificationService
-    .createNotification(
-userId:
-offer.craftsmanId,
-title:
-l10n.offerAcceptedTitle,
-body:
-"'${offer.jobTitle}' ${l10n.offerAcceptedBody}",
-);
-
 if (!mounted) {
 return;
 }
@@ -427,16 +414,6 @@ onPressed: () async {
 await _offerService
     .rejectOffer(
 offer.id,
-);
-
-await _notificationService
-    .createNotification(
-userId:
-offer.craftsmanId,
-title:
-l10n.offerRejectedTitle,
-body:
-"'${offer.jobTitle}' ${l10n.offerRejectedBody}",
 );
 
 if (!mounted) {
@@ -558,6 +535,44 @@ null;
 ],
 
 if (offer.status == "accepted") ...[
+const SizedBox(height: 10),
+
+SizedBox(
+width: double.infinity,
+child:
+OutlinedButton.icon(
+icon: const Icon(
+Icons.message,
+),
+label: Text(
+l10n.sendMessage,
+),
+onPressed: () async {
+final chatId =
+await _chatService
+    .openChatForOffer(
+offerId: offer.id,
+);
+
+if (!mounted) return;
+
+Navigator.push(
+context,
+MaterialPageRoute(
+builder: (_) =>
+ChatPage(
+chatId: chatId,
+receiverId:
+offer.craftsmanId,
+receiverName:
+l10n.craftsman,
+),
+),
+);
+},
+),
+),
+
 const SizedBox(height: 10),
 
 SizedBox(
@@ -749,44 +764,6 @@ FontWeight.bold,
 ),
 ),
 
-const SizedBox(height: 12),
-
-SizedBox(
-width: double.infinity,
-child:
-OutlinedButton.icon(
-icon: const Icon(
-Icons.message,
-),
-label: Text(
-l10n.sendMessage,
-),
-onPressed: () async {
-final chatId =
-await _chatService
-    .openChatForOffer(
-offerId: offer.id,
-);
-
-if (!mounted) return;
-
-Navigator.push(
-context,
-MaterialPageRoute(
-builder: (_) =>
-ChatPage(
-chatId: chatId,
-receiverId:
-offer.craftsmanId,
-receiverName:
-l10n.craftsman,
-),
-),
-);
-},
-),
-),
-
 const SizedBox(height: 10),
 
 SizedBox(
@@ -807,7 +784,7 @@ foregroundColor:
 Colors.white,
 ),
 onPressed: () async {
-final reviewed = await Navigator.push<bool>(
+await Navigator.push<bool>(
 context,
 MaterialPageRoute(
 builder: (_) =>
@@ -820,9 +797,6 @@ offer.jobId,
 ),
 );
 
-if (reviewed == true) {
-  await _offerService.markCustomerReviewed(offer.id);
-}
 },
 ),
 ),

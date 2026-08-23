@@ -6,10 +6,12 @@ import '../generated/app_localizations.dart';
 
 class NewPasswordPage extends StatefulWidget {
   final String email;
+  final String resetToken;
 
   const NewPasswordPage({
     super.key,
     required this.email,
+    required this.resetToken,
   });
 
   @override
@@ -35,21 +37,16 @@ class _NewPasswordPageState extends State<NewPasswordPage> {
     final l10n = AppLocalizations.of(context)!;
     if (passwordController.text.isEmpty ||
         passwordAgainController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(l10n.fillAllFields),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.fillAllFields)));
       return;
     }
 
-    if (passwordController.text !=
-        passwordAgainController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(l10n.passwordsDoNotMatch),
-        ),
-      );
+    if (passwordController.text != passwordAgainController.text) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.passwordsDoNotMatch)));
       return;
     }
 
@@ -62,12 +59,11 @@ class _NewPasswordPageState extends State<NewPasswordPage> {
         Uri.parse(
           "https://europe-west1-usta-kapinda-e9ea7.cloudfunctions.net/resetPasswordWithCode",
         ),
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: {"Content-Type": "application/json"},
         body: jsonEncode({
           "email": widget.email,
           "password": passwordController.text,
+          "resetToken": widget.resetToken,
         }),
       );
 
@@ -79,22 +75,14 @@ class _NewPasswordPageState extends State<NewPasswordPage> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(l10n.passwordChangedSuccessfully),
-        ),
-      );
-
-      Navigator.pushNamedAndRemoveUntil(
+      ScaffoldMessenger.of(
         context,
-        "/login",
-            (route) => false,
-      );
+      ).showSnackBar(SnackBar(content: Text(l10n.passwordChangedSuccessfully)));
+
+      Navigator.pushNamedAndRemoveUntil(context, "/login", (route) => false);
     } on FirebaseAuthException catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.message ?? l10n.somethingWentWrong),
-        ),
+        SnackBar(content: Text(e.message ?? l10n.somethingWentWrong)),
       );
     }
 
@@ -110,10 +98,7 @@ class _NewPasswordPageState extends State<NewPasswordPage> {
     final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.newPassword),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: Text(l10n.newPassword), centerTitle: true),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -125,9 +110,7 @@ class _NewPasswordPageState extends State<NewPasswordPage> {
                 labelText: l10n.newPassword,
                 suffixIcon: IconButton(
                   icon: Icon(
-                    obscure1
-                        ? Icons.visibility_off
-                        : Icons.visibility,
+                    obscure1 ? Icons.visibility_off : Icons.visibility,
                   ),
                   onPressed: () {
                     setState(() {
@@ -145,9 +128,7 @@ class _NewPasswordPageState extends State<NewPasswordPage> {
                 labelText: l10n.confirmPassword,
                 suffixIcon: IconButton(
                   icon: Icon(
-                    obscure2
-                        ? Icons.visibility_off
-                        : Icons.visibility,
+                    obscure2 ? Icons.visibility_off : Icons.visibility,
                   ),
                   onPressed: () {
                     setState(() {
@@ -165,9 +146,7 @@ class _NewPasswordPageState extends State<NewPasswordPage> {
                 onPressed: loading ? null : savePassword,
                 child: loading
                     ? const CircularProgressIndicator()
-                    : Text(
-                  l10n.updatePassword,
-                ),
+                    : Text(l10n.updatePassword),
               ),
             ),
           ],

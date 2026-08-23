@@ -1,49 +1,22 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
 import '../models/review_model.dart';
 
 class ReviewService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFunctions _functions = FirebaseFunctions.instanceFor(
+    region: 'europe-west1',
+  );
 
   final String _collection = "reviews";
 
   Future<void> addReview(ReviewModel review) async {
-    final doc = _firestore.collection(_collection).doc();
-
-    final data = {
-      "id": doc.id,
-      ...review.toMap(),
-    };
-
-    // Ana reviews koleksiyonuna kaydet
-    await doc.set(data);
-
-    final customerDoc = await _firestore
-        .collection("users")
-        .doc(review.customerId)
-        .get();
-
-    final customerData = customerDoc.data() ?? {};
-
-    final firstName = customerData["firstName"] ?? "";
-    final lastName = customerData["lastName"] ?? "";
-
-    final photo = customerData["profilePhoto"] ?? "";
-
-    final targetUserId =
-    review.reviewerType == "customer"
-        ? review.craftsmanId
-        : review.customerId;
-
-    await _firestore
-        .collection("users")
-        .doc(targetUserId)
-        .collection("reviews")
-        .doc(doc.id)
-        .set({
-      ...data,
-      "userName": "$firstName $lastName",
-      "userPhoto": photo,
+    await _functions.httpsCallable('submitReview').call({
+      'jobId': review.jobId,
+      'reviewerType': review.reviewerType,
+      'rating': review.rating,
+      'comment': review.comment,
     });
   }
 

@@ -376,7 +376,7 @@ class _ChatPageState extends State<ChatPage>
                                     onPressed: () async {
                                       Navigator.pop(context);
 
-                                      await _chatService.deleteChat(
+                                      await _chatService.clearChat(
                                         chatId: widget.chatId,
                                       );
 
@@ -567,7 +567,7 @@ class _ChatPageState extends State<ChatPage>
                               onPressed: () async {
                                 Navigator.pop(context);
 
-                                await _chatService.deleteChat(
+                                await _chatService.clearChat(
                                   chatId: widget.chatId,
                                 );
 

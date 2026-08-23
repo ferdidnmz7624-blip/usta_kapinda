@@ -2,43 +2,27 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 
-
 class UserService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseFunctions _functions =
-  FirebaseFunctions.instanceFor(
+  final FirebaseFunctions _functions = FirebaseFunctions.instanceFor(
     region: "europe-west1",
   );
   Future<void> saveUser(UserModel user) async {
-    await _firestore
-        .collection('users')
-        .doc(user.uid)
-        .set(user.toMap());
+    await _firestore.collection('users').doc(user.uid).set(user.toMap());
   }
 
   Future<UserModel?> getUser(String uid) async {
-    print("ARAMA UID: $uid");
-
-    final doc = await _firestore
-        .collection('users')
-        .doc(uid)
-        .get();
-
-    print("BELGE VAR MI: ${doc.exists}");
+    final doc = await _firestore.collection('users').doc(uid).get();
 
     if (!doc.exists) {
       return null;
     }
 
-    print("VERİ: ${doc.data()}");
-
     return UserModel.fromMap(doc.data()!);
   }
+
   Future<void> updateUser(UserModel user) async {
-    await _firestore
-        .collection("users")
-        .doc(user.uid)
-        .update({
+    await _firestore.collection("users").doc(user.uid).update({
       "firstName": user.firstName,
       "lastName": user.lastName,
       "phone": user.phone,
@@ -59,62 +43,37 @@ class UserService {
   }
 
   Future<void> changeAccountType(String accountType) async {
-    await _functions
-        .httpsCallable("changeAccountType")
-        .call({
+    await _functions.httpsCallable("changeAccountType").call({
       "accountType": accountType,
     });
   }
 
   Future<void> changeActiveMode(String activeMode) async {
-    await _functions
-        .httpsCallable("changeActiveMode")
-        .call({
+    await _functions.httpsCallable("changeActiveMode").call({
       "activeMode": activeMode,
     });
   }
 
   Future<void> activateCustomerProfile() async {
-    await _functions
-        .httpsCallable("activateCustomerProfile")
-        .call();
+    await _functions.httpsCallable("activateCustomerProfile").call();
   }
 
   Future<void> activateCraftsmanProfile() async {
-    await _functions
-        .httpsCallable("activateCraftsmanProfile")
-        .call();
+    await _functions.httpsCallable("activateCraftsmanProfile").call();
   }
-  Future<void> updateProfilePhoto(
-      String uid,
-      String photoUrl,
-      ) async {
-    await _firestore
-        .collection('users')
-        .doc(uid)
-        .update({
+
+  Future<void> updateProfilePhoto(String uid, String photoUrl) async {
+    await _firestore.collection('users').doc(uid).update({
       'profilePhoto': photoUrl,
     });
   }
 
-
-  Future<void> saveFcmToken(
-      String uid,
-      String token,
-      ) async {
-    print("Firestore'a token yazılıyor...");
-    print(uid);
-    print(token);
-
-    await _firestore
-        .collection("users")
-        .doc(uid)
-        .set({
+  Future<void> saveFcmToken(String uid, String token) async {
+    await _firestore.collection("users").doc(uid).set({
       "fcmToken": token,
     }, SetOptions(merge: true));
-
-    print("Firestore yazma tamamlandı.");
   }
+
   Future<void> updateLinkedAccounts({
     required String uid,
     String? linkedCustomerUid,
@@ -138,11 +97,17 @@ class UserService {
       data["linkedCraftsmanUid"] = linkedCraftsmanUid;
     }
 
-    await _firestore
-        .collection("users")
-        .doc(uid)
-        .update(data);
+    await _firestore.collection("users").doc(uid).update(data);
   }
+
+  /// İki ayrı Firebase hesabını, her iki oturumun kanıtı doğrulanarak
+  /// sunucu tarafında bağlar. İstemci başka kullanıcının belgesini yazmaz.
+  Future<void> linkAccounts({required String sourceIdToken}) async {
+    await _functions.httpsCallable('linkAccounts').call({
+      'sourceIdToken': sourceIdToken,
+    });
+  }
+
   Future<UserModel?> getUserByEmail(String email) async {
     final query = await _firestore
         .collection("users")
@@ -155,40 +120,66 @@ class UserService {
     return UserModel.fromMap(query.docs.first.data());
   }
 
+  /// Bağlı hesabı öncelikle UID ile bulur; eski sürümlerde eksik veya yanlış
+  /// kaydedilmiş bağlantılar için e-posta ve karşılıklı bağlantıdan geri kazanır.
+  Future<UserModel?> getLinkedAccount({
+    required UserModel source,
+    required String targetAccountType,
+  }) async {
+    final isCustomer = targetAccountType == 'customer';
+    final linkedUid = isCustomer
+        ? source.linkedCustomerUid
+        : source.linkedCraftsmanUid;
+    final linkedEmail = isCustomer
+        ? source.linkedCustomerEmail
+        : source.linkedCraftsmanEmail;
+
+    if (linkedUid.isNotEmpty) {
+      final linked = await getUser(linkedUid);
+      if (linked?.accountType == targetAccountType) return linked;
+    }
+
+    if (linkedEmail.isNotEmpty) {
+      final linked = await getUserByEmail(linkedEmail);
+      if (linked?.accountType == targetAccountType) return linked;
+    }
+
+    final reverseLinkField = isCustomer
+        ? 'linkedCraftsmanUid'
+        : 'linkedCustomerUid';
+    final matches = await _firestore
+        .collection('users')
+        .where(reverseLinkField, isEqualTo: source.uid)
+        .limit(5)
+        .get();
+    for (final doc in matches.docs) {
+      final candidate = UserModel.fromMap(doc.data());
+      if (candidate.accountType == targetAccountType) return candidate;
+    }
+    return null;
+  }
+
   Stream<UserModel?> streamUser(String uid) {
-    return _firestore
-        .collection("users")
-        .doc(uid)
-        .snapshots()
-        .map((doc) {
+    return _firestore.collection("users").doc(uid).snapshots().map((doc) {
       if (!doc.exists) return null;
 
       return UserModel.fromMap(doc.data()!);
     });
   }
-  Future<void> setOnlineStatus(
-      String uid,
-      bool online,
-      ) async {
-    await _firestore
-        .collection("users")
-        .doc(uid)
-        .update({
+
+  Future<void> setOnlineStatus(String uid, bool online) async {
+    await _firestore.collection("users").doc(uid).update({
       "isOnline": online,
       "lastSeen": Timestamp.now(),
     });
   }
+
   Future<void> blockUser({
     required String currentUserId,
     required String blockedUserId,
   }) async {
-    await _firestore
-        .collection("users")
-        .doc(currentUserId)
-        .set({
-      "blockedUsers": FieldValue.arrayUnion([
-        blockedUserId,
-      ]),
+    await _firestore.collection("users").doc(currentUserId).set({
+      "blockedUsers": FieldValue.arrayUnion([blockedUserId]),
     }, SetOptions(merge: true));
   }
 
@@ -196,13 +187,8 @@ class UserService {
     required String currentUserId,
     required String blockedUserId,
   }) async {
-    await _firestore
-        .collection("users")
-        .doc(currentUserId)
-        .set({
-      "blockedUsers": FieldValue.arrayRemove([
-        blockedUserId,
-      ]),
+    await _firestore.collection("users").doc(currentUserId).set({
+      "blockedUsers": FieldValue.arrayRemove([blockedUserId]),
     }, SetOptions(merge: true));
   }
 
@@ -210,10 +196,7 @@ class UserService {
     required String currentUserId,
     required String otherUserId,
   }) async {
-    final doc = await _firestore
-        .collection("users")
-        .doc(currentUserId)
-        .get();
+    final doc = await _firestore.collection("users").doc(currentUserId).get();
 
     if (!doc.exists) return false;
 
@@ -221,44 +204,41 @@ class UserService {
 
     if (data == null) return false;
 
-    final blockedUsers =
-    List<String>.from(data["blockedUsers"] ?? []);
+    final blockedUsers = List<String>.from(data["blockedUsers"] ?? []);
 
     return blockedUsers.contains(otherUserId);
   }
+
   Stream<List<UserModel>> getBlockedUsers(String currentUserId) {
     return _firestore
         .collection("users")
         .doc(currentUserId)
         .snapshots()
         .asyncMap((doc) async {
-      if (!doc.exists) return <UserModel>[];
+          if (!doc.exists) return <UserModel>[];
 
-      final data = doc.data()!;
+          final data = doc.data()!;
 
-      final blockedUsers =
-      List<String>.from(data["blockedUsers"] ?? []);
+          final blockedUsers = List<String>.from(data["blockedUsers"] ?? []);
 
-      if (blockedUsers.isEmpty) {
-        return <UserModel>[];
-      }
+          if (blockedUsers.isEmpty) {
+            return <UserModel>[];
+          }
 
-      final List<UserModel> users = [];
+          final List<UserModel> users = [];
 
-      for (final uid in blockedUsers) {
-        final userDoc = await _firestore
-            .collection("users")
-            .doc(uid)
-            .get();
+          for (final uid in blockedUsers) {
+            final userDoc = await _firestore.collection("users").doc(uid).get();
 
-        if (userDoc.exists) {
-          users.add(UserModel.fromMap(userDoc.data()!));
-        }
-      }
+            if (userDoc.exists) {
+              users.add(UserModel.fromMap(userDoc.data()!));
+            }
+          }
 
-      return users;
-    });
+          return users;
+        });
   }
+
   Stream<bool> canUsersChat({
     required String currentUserId,
     required String otherUserId,
@@ -268,79 +248,74 @@ class UserService {
         .doc(currentUserId)
         .snapshots()
         .asyncMap((myDoc) async {
-      final otherDoc = await _firestore
-          .collection("users")
-          .doc(otherUserId)
-          .get();
+          final otherDoc = await _firestore
+              .collection("users")
+              .doc(otherUserId)
+              .get();
 
-      final myBlocked =
-      List<String>.from(myDoc.data()?["blockedUsers"] ?? []);
+          final myBlocked = List<String>.from(
+            myDoc.data()?["blockedUsers"] ?? [],
+          );
 
-      final otherBlocked =
-      List<String>.from(otherDoc.data()?["blockedUsers"] ?? []);
+          final otherBlocked = List<String>.from(
+            otherDoc.data()?["blockedUsers"] ?? [],
+          );
 
-      return !(myBlocked.contains(otherUserId) ||
-          otherBlocked.contains(currentUserId));
-    });
+          return !(myBlocked.contains(otherUserId) ||
+              otherBlocked.contains(currentUserId));
+        });
   }
+
   Stream<bool> isBlockedStream({
     required String currentUserId,
     required String blockedUserId,
   }) {
-    return _firestore
-        .collection("users")
-        .doc(currentUserId)
-        .snapshots()
-        .map((doc) {
-      final blockedUsers =
-      List<String>.from(doc.data()?["blockedUsers"] ?? []);
+    return _firestore.collection("users").doc(currentUserId).snapshots().map((
+      doc,
+    ) {
+      final blockedUsers = List<String>.from(doc.data()?["blockedUsers"] ?? []);
 
       return blockedUsers.contains(blockedUserId);
     });
   }
+
   Stream<List<UserModel>> getCraftsmen() {
     return _firestore
         .collection("users")
         .where("accountType", isEqualTo: "craftsman")
         .snapshots()
         .map((snapshot) {
-      final users = snapshot.docs
-          .map((e) => UserModel.fromMap(e.data()))
-          .toList();
+          final users = snapshot.docs
+              .map((e) => UserModel.fromMap(e.data()))
+              .toList();
 
-      users.sort((a, b) {
-        final ratingCompare = b.rating.compareTo(a.rating);
+          users.sort((a, b) {
+            final ratingCompare = b.rating.compareTo(a.rating);
 
-        if (ratingCompare != 0) {
-          return ratingCompare;
-        }
+            if (ratingCompare != 0) {
+              return ratingCompare;
+            }
 
-        return b.completedJobs.compareTo(a.completedJobs);
-      });
-      users.removeWhere((user) => user.isFrozen);
-      return users;
-    });
+            return b.completedJobs.compareTo(a.completedJobs);
+          });
+          users.removeWhere((user) => user.isFrozen);
+          return users;
+        });
   }
+
   Future<void> freezeAccount() async {
-    await _functions
-        .httpsCallable("freezeAccount")
-        .call();
+    await _functions.httpsCallable("freezeAccount").call();
   }
 
   Future<void> unfreezeAccount() async {
-    await _functions
-        .httpsCallable("unfreezeAccount")
-        .call();
+    await _functions.httpsCallable("unfreezeAccount").call();
   }
+
   Future<void> requestDeleteAccount() async {
-    await _functions
-        .httpsCallable("requestDeleteAccount")
-        .call();
+    await _functions.httpsCallable("requestDeleteAccount").call();
   }
 
   Future<void> cancelDeleteAccount() async {
-    await _functions
-        .httpsCallable("cancelDeleteAccount")
-        .call();
+    await _functions.httpsCallable("cancelDeleteAccount").call();
   }
 }
