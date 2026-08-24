@@ -6,6 +6,7 @@ val keystorePropertiesFile = rootProject.file("key.properties")
 if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(keystorePropertiesFile.inputStream())
 }
+
 plugins {
     id("com.android.application")
     id("com.google.gms.google-services")
@@ -28,6 +29,10 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        buildConfigField("String", "TIKTOK_APP_ID", "\"7677451128520065031\"")
+    }
+    buildFeatures {
+        buildConfig = true
     }
     signingConfigs {
         create("release") {
@@ -48,6 +53,10 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }
@@ -59,6 +68,8 @@ kotlin {
 }
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
+    // TikTok App Events SDK: only anonymous install/app-event measurement.
+    implementation(files("libs/tiktok-business-android-sdk-1.7.0.aar"))
 }
 flutter {
     source = "../.."

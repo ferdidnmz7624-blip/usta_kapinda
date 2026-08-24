@@ -1412,4 +1412,8 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get language => 'Dil';
+
+  @override
+  String get tiktokMeasurementNotice =>
+      'Reklam Ölçümü (TikTok)\n\nUygulama, reklam kampanyalarının uygulama yükleme, açılış ve ikinci gün geri dönüş üzerindeki etkisini ölçmek için TikTok App Events SDK kullanabilir. Bu ölçüm için reklam kimliği, e-posta, telefon numarası, mesaj içeriği, profil verisi veya kesin konum TikTok\'a gönderilmez. TikTok, ölçüm hizmetini yürütmek için sınırlı teknik cihaz ve uygulama etkinliği verilerini kendi gizlilik politikasına uygun şekilde işleyebilir.';
 }

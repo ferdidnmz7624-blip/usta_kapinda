@@ -539,5 +539,6 @@
 "purchaseAlreadyProcessed": "Bu satın alma daha önce işlendi.",
 "tokensAdded": "{tokens} jeton hesabınıza eklendi.",
 
-  "language": "Dil"
+  "language": "Dil",
+  "tiktokMeasurementNotice": "Reklam Ölçümü (TikTok)\n\nUygulama, reklam kampanyalarının uygulama yükleme, açılış ve ikinci gün geri dönüş üzerindeki etkisini ölçmek için TikTok App Events SDK kullanabilir. Bu ölçüm için reklam kimliği, e-posta, telefon numarası, mesaj içeriği, profil verisi veya kesin konum TikTok'a gönderilmez. TikTok, ölçüm hizmetini yürütmek için sınırlı teknik cihaz ve uygulama etkinliği verilerini kendi gizlilik politikasına uygun şekilde işleyebilir."
 }

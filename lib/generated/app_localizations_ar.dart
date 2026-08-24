@@ -1408,4 +1408,8 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get language => 'اللغة';
+
+  @override
+  String get tiktokMeasurementNotice =>
+      'قياس الإعلانات (TikTok)\n\nقد يستخدم التطبيق TikTok App Events SDK فقط لقياس أثر الحملات الإعلانية على عمليات التثبيت وفتح التطبيق والعودة في اليوم الثاني. لا يتم إرسال معرّف إعلاني أو بريد إلكتروني أو رقم هاتف أو محتوى رسائل أو بيانات ملف شخصي أو موقع دقيق إلى TikTok لهذا القياس. قد تعالج TikTok بيانات تقنية محدودة عن الجهاز وأحداث التطبيق وفقًا لسياسة الخصوصية الخاصة بها لتقديم خدمة القياس هذه.';
 }

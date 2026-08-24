@@ -2773,6 +2773,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Language'**
   String get language;
+
+  /// No description provided for @tiktokMeasurementNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'Advertising Measurement (TikTok)\n\nThe app may use the TikTok App Events SDK solely to measure the impact of ad campaigns on installs, app launches, and second-day retention. No advertising identifier, email address, phone number, message content, profile data, or precise location is sent to TikTok for this measurement. TikTok may process limited technical device and app-event data in accordance with its privacy policy to provide this measurement service.'**
+  String get tiktokMeasurementNotice;
 }
 
 class _AppLocalizationsDelegate

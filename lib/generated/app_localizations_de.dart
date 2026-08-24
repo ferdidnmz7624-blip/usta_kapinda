@@ -1448,4 +1448,8 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get language => 'Sprache';
+
+  @override
+  String get tiktokMeasurementNotice =>
+      'Werbemessung (TikTok)\n\nDie App kann das TikTok App Events SDK ausschließlich verwenden, um die Wirkung von Werbekampagnen auf Installationen, App-Starts und die Rückkehr am zweiten Tag zu messen. Für diese Messung werden keine Werbe-ID, E-Mail-Adresse, Telefonnummer, Nachrichteninhalte, Profildaten oder präzisen Standortdaten an TikTok gesendet. TikTok kann begrenzte technische Geräte- und App-Ereignisdaten gemäß seiner Datenschutzrichtlinie verarbeiten, um diesen Messdienst bereitzustellen.';
 }

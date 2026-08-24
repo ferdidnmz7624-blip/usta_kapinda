@@ -1417,4 +1417,8 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get language => 'Language';
+
+  @override
+  String get tiktokMeasurementNotice =>
+      'Advertising Measurement (TikTok)\n\nThe app may use the TikTok App Events SDK solely to measure the impact of ad campaigns on installs, app launches, and second-day retention. No advertising identifier, email address, phone number, message content, profile data, or precise location is sent to TikTok for this measurement. TikTok may process limited technical device and app-event data in accordance with its privacy policy to provide this measurement service.';
 }
