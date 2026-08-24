@@ -6,7 +6,7 @@
     <uses-permission android:name="com.android.vending.BILLING"/>
     <application
         android:label="Usta Kapında"
-        android:name="${applicationName}"
+        android:name=".UstaKapindaApplication"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"
