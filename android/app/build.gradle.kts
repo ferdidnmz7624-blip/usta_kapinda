@@ -70,6 +70,7 @@ dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
     // TikTok App Events SDK: only anonymous install/app-event measurement.
     implementation(files("libs/tiktok-business-android-sdk-1.7.0.aar"))
+    implementation("com.android.installreferrer:installreferrer:2.2")
 }
 flutter {
     source = "../.."
