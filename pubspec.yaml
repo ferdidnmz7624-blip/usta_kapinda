@@ -2,7 +2,7 @@ name: usta_kapinda
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.0.7+34
+version: 1.1.7+41
 
 environment:
   sdk: ^3.12.2
@@ -41,6 +41,7 @@ dependencies:
   cloud_functions: ^6.3.5
   firebase_app_check: ^0.4.6
   in_app_purchase: ^3.3.0
+  in_app_purchase_android: ^0.5.2
   in_app_purchase_storekit: ^0.4.11+1
   sign_in_with_apple: ^8.1.0
   crypto: ^3.0.7

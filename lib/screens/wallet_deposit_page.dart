@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
+import 'package:in_app_purchase_android/in_app_purchase_android.dart';
 
 import 'wallet_page.dart';
 import '../services/user_service.dart';
@@ -109,13 +110,11 @@ class _WalletDepositPageState extends State<WalletDepositPage> {
   }
 
   Future<void> _initializeStore() async {
-    if (_purchaseSubscription == null) {
-      _purchaseSubscription = _inAppPurchase.purchaseStream.listen(
+    _purchaseSubscription ??= _inAppPurchase.purchaseStream.listen(
         _handlePurchaseUpdates,
         onDone: () => _purchaseSubscription?.cancel(),
         onError: (error) => debugPrint("Satın alma akışı hatası: $error"),
       );
-    }
 
     if (mounted) {
       setState(() {
@@ -171,7 +170,7 @@ class _WalletDepositPageState extends State<WalletDepositPage> {
         _storeMessage = hasProducts
             ? null
             : "Jeton paketleri henüz App Store'dan alınamadı. "
-                "Ürünlerin TestFlight için etkinleşmesi birkaç dakika sürebilir.";
+                  "Ürünlerin TestFlight için etkinleşmesi birkaç dakika sürebilir.";
       });
     } catch (error) {
       debugPrint("Mağaza başlatma hatası: $error");
@@ -206,135 +205,102 @@ class _WalletDepositPageState extends State<WalletDepositPage> {
     }
   }
 
-  Future<void> _buyPackage(
-      Map<String, dynamic> item,
-      ) async {
+  Future<void> _buyPackage(Map<String, dynamic> item) async {
     final l10n = AppLocalizations.of(context)!;
 
     if (!_storeAvailable) {
-      _showMessage(
-        l10n.storeUnavailable,
-      );
+      _showMessage(l10n.storeUnavailable);
       return;
     }
 
-    final productId =
-    item["productId"] as String;
+    final productId = item["productId"] as String;
 
     final product = _products[productId];
 
     if (product == null) {
-      _showMessage(
-        l10n.productNotFound,
-      );
+      _showMessage(l10n.productNotFound);
       return;
     }
 
-    final purchaseParam = PurchaseParam(
-      productDetails: product,
-    );
+    final purchaseParam = PurchaseParam(productDetails: product);
 
     try {
       await _inAppPurchase.buyConsumable(
         purchaseParam: purchaseParam,
+        // Jeton paketleri tüketilebilir ürünlerdir. Otomatik tüketimi
+        // kapatıyoruz; önce sunucu makbuzu doğrulayıp jetonu ekler, ardından
+        // aşağıda yalnızca başarılı doğrulama için ürünü tüketiriz.
         autoConsume: false,
       );
     } catch (error) {
-      debugPrint(
-        "Satın alma başlatma hatası: $error",
-      );
+      debugPrint("Satın alma başlatma hatası: $error");
 
       if (!mounted) return;
 
-      _showMessage(
-        l10n.purchaseStartFailed,
-      );
+      _showMessage(l10n.purchaseStartFailed);
     }
   }
 
-  Future<void> _handlePurchaseUpdates(
-      List<PurchaseDetails> purchases,
-      ) async {
+  Future<void> _handlePurchaseUpdates(List<PurchaseDetails> purchases) async {
     final l10n = AppLocalizations.of(context)!;
 
     for (final purchase in purchases) {
       debugPrint(
         "Purchase status: "
-            "${purchase.productID} - "
-            "${purchase.status}",
+        "${purchase.productID} - "
+        "${purchase.status}",
       );
 
-      if (purchase.status ==
-          PurchaseStatus.pending) {
+      if (purchase.status == PurchaseStatus.pending) {
         if (mounted) {
-          _showMessage(
-            l10n.purchasePending,
-          );
+          _showMessage(l10n.purchasePending);
         }
 
         continue;
       }
 
-      if (purchase.status ==
-          PurchaseStatus.error) {
+      if (purchase.status == PurchaseStatus.error) {
         debugPrint(
           "Google Play satın alma hatası: "
-              "${purchase.error}",
+          "${purchase.error}",
         );
 
         if (mounted) {
-          _showMessage(
-            l10n.purchaseFailed,
-          );
+          _showMessage(l10n.purchaseFailed);
         }
 
         if (purchase.pendingCompletePurchase) {
-          await _inAppPurchase.completePurchase(
-            purchase,
-          );
+          await _inAppPurchase.completePurchase(purchase);
         }
 
         continue;
       }
 
-      if (purchase.status ==
-          PurchaseStatus.purchased ||
-          purchase.status ==
-              PurchaseStatus.restored) {
-        await _verifyPurchaseOnServer(
-          purchase,
-        );
+      if (purchase.status == PurchaseStatus.purchased ||
+          purchase.status == PurchaseStatus.restored) {
+        await _verifyPurchaseOnServer(purchase);
       }
     }
   }
 
-  Future<void> _verifyPurchaseOnServer(
-      PurchaseDetails purchase,
-      ) async {
+  Future<void> _verifyPurchaseOnServer(PurchaseDetails purchase) async {
     final l10n = AppLocalizations.of(context)!;
 
-    final user =
-        FirebaseAuth.instance.currentUser;
+    final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
       if (mounted) {
-        _showMessage(
-          l10n.sessionNotFound,
-        );
+        _showMessage(l10n.sessionNotFound);
       }
 
       return;
     }
 
-    final purchaseToken =
-        purchase.verificationData
-            .serverVerificationData;
+    final purchaseToken = purchase.verificationData.serverVerificationData;
 
     if (purchaseToken.isEmpty) {
       if (mounted) {
-        _showMessage(
-          l10n.purchaseVerificationInfoMissing,
-        );
+        _showMessage(l10n.purchaseVerificationInfoMissing);
       }
 
       return;
@@ -346,14 +312,12 @@ class _WalletDepositPageState extends State<WalletDepositPage> {
       final isAppStorePurchase =
           !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
 
-      final callable =
-      FirebaseFunctions.instanceFor(
-        region: "europe-west1",
-      ).httpsCallable(
-        isAppStorePurchase
-            ? "verifyAppStoreTokenPurchase"
-            : "verifyGooglePlayTokenPurchase",
-      );
+      final callable = FirebaseFunctions.instanceFor(region: "europe-west1")
+          .httpsCallable(
+            isAppStorePurchase
+                ? "verifyAppStoreTokenPurchase"
+                : "verifyGooglePlayTokenPurchase",
+          );
 
       final result = await callable.call({
         "productId": purchase.productID,
@@ -364,60 +328,67 @@ class _WalletDepositPageState extends State<WalletDepositPage> {
           "purchaseToken": purchaseToken,
       });
 
-      final data =
-      Map<String, dynamic>.from(
-        result.data as Map,
-      );
+      final data = Map<String, dynamic>.from(result.data as Map);
 
       if (data["success"] == true) {
         verified = true;
-        final tokensAdded =
-        data["tokensAdded"];
+        final tokensAdded = data["tokensAdded"];
 
         await loadBalance();
 
         if (!mounted) return;
 
         if (data["alreadyProcessed"] == true) {
-          _showMessage(
-            l10n.purchaseAlreadyProcessed,
-          );
+          _showMessage(l10n.purchaseAlreadyProcessed);
         } else {
-          _showMessage(
-            l10n.tokensAdded(
-              tokensAdded.toString(),
-            ),
-          );
+          _showMessage(l10n.tokensAdded(tokensAdded.toString()));
         }
       }
     } on FirebaseFunctionsException catch (error) {
       debugPrint(
         "Firebase satın alma doğrulama hatası: "
-            "${error.code} - ${error.message}",
+        "${error.code} - ${error.message}",
       );
 
       if (!mounted) return;
 
-      _showMessage(
-        l10n.purchaseNotVerified,
-      );
+      _showMessage(l10n.purchaseNotVerified);
     } catch (error) {
-      debugPrint(
-        "Satın alma doğrulama hatası: $error",
-      );
+      debugPrint("Satın alma doğrulama hatası: $error");
 
       if (!mounted) return;
 
-      _showMessage(
-        l10n.purchaseNotVerified,
-      );
+      _showMessage(l10n.purchaseNotVerified);
     } finally {
-      // Ödeme yalnızca sunucu doğrulaması başarılıysa tamamlanır. Böylece
-      // bağlantı veya doğrulama hatasında kullanıcı jetonunu kaybetmez.
+      // Android'de completePurchase yalnızca satın almayı onaylar; tüketim
+      // yapmaz. Tüketim yapılmadığında Google Play paketi kullanıcıya ait
+      // sayar ve aynı paketin tekrar alınmasını engeller. Önce sunucu
+      // doğrulaması başarılı olmalı, ardından satın alma tüketilmelidir.
+      if (verified &&
+          !kIsWeb &&
+          defaultTargetPlatform == TargetPlatform.android &&
+          purchase is GooglePlayPurchaseDetails) {
+        try {
+          final addition = _inAppPurchase
+              .getPlatformAddition<InAppPurchaseAndroidPlatformAddition>();
+          await addition.consumePurchase(purchase);
+        } catch (error) {
+          // Kullanıcının jetonu zaten sunucuda güvenli biçimde yazılmıştır.
+          // Tüketim anlık olarak başarısızsa sayfa açıldığında kurtarma akışı
+          // aynı makbuzu yeniden doğrular ve tekrar tüketmeyi dener.
+          debugPrint("Google Play tüketim hatası: $error");
+        }
+      }
+
+      // iOS'ta ve Android'de tüketimden sonra bekleyen mağaza işlemini
+      // kapatırız. Doğrulama başarısızsa hiçbir mağaza işlemi kapatılmaz;
+      // böylece makbuz daha sonra güvenle yeniden işlenebilir.
       if (verified && purchase.pendingCompletePurchase) {
-        await _inAppPurchase.completePurchase(
-          purchase,
-        );
+        try {
+          await _inAppPurchase.completePurchase(purchase);
+        } catch (error) {
+          debugPrint("Satın alma tamamlama hatası: $error");
+        }
       }
     }
   }
@@ -427,207 +398,159 @@ class _WalletDepositPageState extends State<WalletDepositPage> {
 
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-        ),
-      );
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
   Widget build(BuildContext context) {
-    final l10n =
-    AppLocalizations.of(context)!;
+    final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
-      backgroundColor:
-      const Color(0xffF4F6FB),
+      backgroundColor: const Color(0xffF4F6FB),
 
-      appBar: AppBar(
-        title: Text(
-          l10n.tokenStore,
-        ),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: Text(l10n.tokenStore), centerTitle: true),
 
       body: ListView(
-        padding:
-        const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
 
         children: [
           Container(
-            padding:
-            const EdgeInsets.all(22),
+            padding: const EdgeInsets.all(22),
 
-            decoration:
-            BoxDecoration(
-              borderRadius:
-              BorderRadius.circular(24),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
 
-              gradient:
-              const LinearGradient(
-                colors: [
-                  Color(0xff081A4A),
-                  Color(0xff103B8A),
-                ],
+              gradient: const LinearGradient(
+                colors: [Color(0xff081A4A), Color(0xff103B8A)],
               ),
             ),
 
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const CircleAvatar(
-                        radius: 35,
-                        backgroundColor: Colors.amber,
-                        child: Icon(
-                          Icons.workspace_premium,
-                          color: Colors.white,
-                          size: 36,
-                        ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const CircleAvatar(
+                      radius: 35,
+                      backgroundColor: Colors.amber,
+                      child: Icon(
+                        Icons.workspace_premium,
+                        color: Colors.white,
+                        size: 36,
                       ),
+                    ),
 
-                      const SizedBox(width: 18),
+                    const SizedBox(width: 18),
 
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              l10n.tokenBalance,
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 16,
-                              ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            l10n.tokenBalance,
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 16,
                             ),
-
-                            const SizedBox(height: 8),
-
-                            FittedBox(
-                              fit: BoxFit.scaleDown,
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                "$tokenBalance ${l10n.tokens}",
-                                maxLines: 1,
-                                softWrap: false,
-                                style: const TextStyle(
-                                  color: Colors.amber,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 34,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 18),
-
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const WalletPage(),
                           ),
-                        );
-                      },
-                      icon: const Icon(Icons.history),
-                      label: const Text("İşlemler"),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: Colors.blue,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+
+                          const SizedBox(height: 8),
+
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              "$tokenBalance ${l10n.tokens}",
+                              maxLines: 1,
+                              softWrap: false,
+                              style: const TextStyle(
+                                color: Colors.amber,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 34,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 18),
+
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const WalletPage()),
+                      );
+                    },
+                    icon: const Icon(Icons.history),
+                    label: const Text("İşlemler"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.blue,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(
-            height: 24,
-          ),
+          const SizedBox(height: 24),
 
           Container(
-            padding:
-            const EdgeInsets.all(18),
+            padding: const EdgeInsets.all(18),
 
-            decoration:
-            BoxDecoration(
+            decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius:
-              BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(20),
               boxShadow: const [
-                BoxShadow(
-                  color: Colors.black12,
-                  blurRadius: 8,
-                ),
+                BoxShadow(color: Colors.black12, blurRadius: 8),
               ],
             ),
 
             child: Column(
-              crossAxisAlignment:
-              CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
 
               children: [
                 Text(
                   l10n.whatAreTokensFor,
-                  style:
-                  const TextStyle(
-                    fontWeight:
-                    FontWeight.bold,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
                     fontSize: 20,
                   ),
                 ),
 
-                const SizedBox(
-                  height: 12,
-                ),
+                const SizedBox(height: 12),
 
                 Text(
                   l10n.tokensUsedForOffers,
-                  style:
-                  const TextStyle(
-                    fontSize: 16,
-                  ),
+                  style: const TextStyle(fontSize: 16),
                 ),
 
-                const SizedBox(
-                  height: 10,
-                ),
+                const SizedBox(height: 10),
 
                 Text(
                   l10n.tokensPerOffer,
-                  style:
-                  const TextStyle(
-                    color: Colors.grey,
-                  ),
+                  style: const TextStyle(color: Colors.grey),
                 ),
               ],
             ),
           ),
 
-          const SizedBox(
-            height: 16,
-          ),
+          const SizedBox(height: 16),
 
           if (_loadingProducts)
-            const Center(
-              child:
-              CircularProgressIndicator(),
-            ),
+            const Center(child: CircularProgressIndicator()),
 
-          if (!_loadingProducts &&
-              !_storeAvailable)
+          if (!_loadingProducts && !_storeAvailable)
             Center(
               child: Column(
                 children: [
@@ -653,103 +576,68 @@ class _WalletDepositPageState extends State<WalletDepositPage> {
               (_storeAvailable || defaultTargetPlatform == TargetPlatform.iOS))
             GridView.builder(
               shrinkWrap: true,
-              physics:
-              const NeverScrollableScrollPhysics(),
+              physics: const NeverScrollableScrollPhysics(),
 
-              itemCount:
-              packages.length,
+              itemCount: packages.length,
 
-              gridDelegate:
-              const SliverGridDelegateWithFixedCrossAxisCount(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
                 crossAxisSpacing: 15,
                 mainAxisSpacing: 15,
                 childAspectRatio: 0.72,
               ),
 
-              itemBuilder:
-                  (context, index) {
-                return _buildPackageCard(
-                  packages[index],
-                  l10n,
-                );
+              itemBuilder: (context, index) {
+                return _buildPackageCard(packages[index], l10n);
               },
             ),
 
-          const SizedBox(
-            height: 25,
-          ),
+          const SizedBox(height: 25),
         ],
       ),
     );
   }
 
-  Widget _buildPackageCard(
-      Map<String, dynamic> item,
-      AppLocalizations l10n,
-      ) {
-    final productId =
-    item["productId"] as String;
+  Widget _buildPackageCard(Map<String, dynamic> item, AppLocalizations l10n) {
+    final productId = item["productId"] as String;
 
-    final product =
-    _products[productId];
+    final product = _products[productId];
 
-    final displayPrice =
-        product?.price ??
-            item["price"].toString();
+    final displayPrice = product?.price ?? item["price"].toString();
 
     return Container(
-      decoration:
-      BoxDecoration(
+      decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius:
-        BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(22),
 
         border: Border.all(
-          color: item["popular"]
-              ? Colors.orange
-              : Colors.grey.shade300,
+          color: item["popular"] ? Colors.orange : Colors.grey.shade300,
           width: 2,
         ),
 
         boxShadow: const [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 8,
-            offset: Offset(0, 4),
-          ),
+          BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4)),
         ],
       ),
 
       child: Column(
-        mainAxisAlignment:
-        MainAxisAlignment.spaceEvenly,
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
 
         children: [
           if (item["popular"])
             Container(
-              padding:
-              const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 5,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
 
-              decoration:
-              BoxDecoration(
+              decoration: BoxDecoration(
                 color: Colors.orange,
-                borderRadius:
-                BorderRadius.circular(
-                  20,
-                ),
+                borderRadius: BorderRadius.circular(20),
               ),
 
               child: Text(
                 l10n.mostPopular,
-                style:
-                const TextStyle(
+                style: const TextStyle(
                   color: Colors.white,
-                  fontWeight:
-                  FontWeight.bold,
+                  fontWeight: FontWeight.bold,
                   fontSize: 11,
                 ),
               ),
@@ -757,8 +645,7 @@ class _WalletDepositPageState extends State<WalletDepositPage> {
 
           CircleAvatar(
             radius: 32,
-            backgroundColor:
-            item["color"] as Color,
+            backgroundColor: item["color"] as Color,
 
             child: const Icon(
               Icons.workspace_premium,
@@ -769,94 +656,60 @@ class _WalletDepositPageState extends State<WalletDepositPage> {
 
           Text(
             "${item["tokens"]} ${l10n.tokens}",
-            style:
-            const TextStyle(
-              fontSize: 22,
-              fontWeight:
-              FontWeight.bold,
-            ),
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
           ),
 
           Text(
             "${item["base"]} + "
-                "${item["bonus"]} "
-                "${l10n.bonus}",
-            style:
-            const TextStyle(
-              color: Colors.grey,
-            ),
+            "${item["bonus"]} "
+            "${l10n.bonus}",
+            style: const TextStyle(color: Colors.grey),
           ),
 
           Text(
             displayPrice,
-            style:
-            const TextStyle(
+            style: const TextStyle(
               color: Colors.green,
-              fontWeight:
-              FontWeight.bold,
+              fontWeight: FontWeight.bold,
               fontSize: 22,
             ),
           ),
 
           Padding(
-            padding:
-            const EdgeInsets.symmetric(
-              horizontal: 8,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
 
             child: SizedBox(
               width: double.infinity,
               height: 45,
 
-              child:
-              ElevatedButton.icon(
-                onPressed:
-                product == null
+              child: ElevatedButton.icon(
+                onPressed: product == null
                     ? null
                     : () {
-                  _buyPackage(
-                    item,
-                  );
-                },
+                        _buyPackage(item);
+                      },
 
-                icon: const Icon(
-                  Icons.shopping_cart,
-                  size: 18,
-                ),
+                icon: const Icon(Icons.shopping_cart, size: 18),
 
                 label: Text(
                   l10n.purchase,
-                  style:
-                  const TextStyle(
-                    fontWeight:
-                    FontWeight.bold,
-                  ),
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
 
-                style:
-                ElevatedButton.styleFrom(
-                  backgroundColor:
-                  item["color"]
-                  as Color,
-                  foregroundColor:
-                  Colors.white,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: item["color"] as Color,
+                  foregroundColor: Colors.white,
                   elevation: 0,
 
-                  shape:
-                  RoundedRectangleBorder(
-                    borderRadius:
-                    BorderRadius.circular(
-                      12,
-                    ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
                 ),
               ),
             ),
           ),
 
-          const SizedBox(
-            height: 10,
-          ),
+          const SizedBox(height: 10),
         ],
       ),
     );

@@ -13,7 +13,6 @@ class WalletPage extends StatefulWidget {
 }
 
 class _WalletPageState extends State<WalletPage> {
-
   final WalletService _walletService = WalletService();
 
   @override
@@ -24,18 +23,12 @@ class _WalletPageState extends State<WalletPage> {
     return Scaffold(
       backgroundColor: const Color(0xffF5F7FA),
 
-      appBar: AppBar(
-        title: Text(l10n.tokens),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: Text(l10n.tokens), centerTitle: true),
 
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-
-
-
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
@@ -53,44 +46,44 @@ class _WalletPageState extends State<WalletPage> {
               stream: _walletService.getTransactions(uid),
 
               builder: (context, snapshot) {
-
-                if (!snapshot.hasData) {
-                  return const Center(
-                    child: CircularProgressIndicator(),
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(30),
+                      child: Text(
+                        "Hesap hareketleri şu an yüklenemedi. Lütfen tekrar deneyin.",
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
                   );
                 }
 
-                final transactions =
-                snapshot.data!;
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                final transactions = snapshot.data!;
 
                 if (transactions.isEmpty) {
                   return Center(
                     child: Padding(
                       padding: const EdgeInsets.all(30),
-                      child: Text(
-                        l10n.noTransactionsYet,
-                      ),
+                      child: Text(l10n.noTransactionsYet),
                     ),
                   );
                 }
 
                 return ListView.builder(
                   shrinkWrap: true,
-                  physics:
-                  const NeverScrollableScrollPhysics(),
-                  itemCount:
-                  transactions.length,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: transactions.length,
                   itemBuilder: (context, index) {
-
-                    final item =
-                    transactions[index];
+                    final item = transactions[index];
 
                     final income = item.tokens >= 0;
 
                     return Card(
-                      margin:
-                      const EdgeInsets.only(
-                          bottom: 12),
+                      margin: const EdgeInsets.only(bottom: 12),
 
                       child: ListTile(
                         leading: CircleAvatar(
@@ -146,7 +139,6 @@ class _WalletPageState extends State<WalletPage> {
                 );
               },
             ),
-
           ],
         ),
       ),

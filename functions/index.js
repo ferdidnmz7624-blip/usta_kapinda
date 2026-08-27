@@ -2582,6 +2582,18 @@ const packageName = "com.ustakapinda.app";
       },
     );
 
+    // Jeton paketleri Google Play'de tüketilebilir ürünlerdir. Bu işlemi
+    // sunucuda, bakiye güvenle ve idempotent biçimde yazıldıktan sonra
+    // tüketiyoruz. Böylece uygulama kapansa veya istemci çevrimdışı kalsa
+    // bile kullanıcı aynı paketi tekrar satın alabilir.
+    if (purchase.consumptionState !== 1) {
+      await androidPublisher.purchases.products.consume({
+        packageName: packageName,
+        productId: productId,
+        token: purchaseToken,
+      });
+    }
+
     return {
       success: true,
       tokensAdded: tokenAmount,
