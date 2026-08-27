@@ -1545,6 +1545,21 @@ transaction.set(
         admin.firestore.FieldValue.serverTimestamp(),
   }
 );
+        // Cüzdan ekranı yalnızca sunucunun yazdığı hareket kayıtlarını okur.
+        // Teklif ücreti ile bakiye düşümü aynı transaction içinde kaydedilir;
+        // böylece bakiye ve hareket geçmişi hiçbir zaman birbirinden ayrışmaz.
+        transaction.set(
+          db.collection("wallet_transactions").doc(`offer_${offerRef.id}`),
+          {
+            uid: uid,
+            type: "offer",
+            tokens: -50,
+            description: "Teklif gönderme ücreti",
+            source: "offer",
+            referenceId: offerRef.id,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+        );
             transaction.set(
               db.collection("notifications").doc(),
               {
@@ -2385,7 +2400,12 @@ exports.getEmailByPhone = onCall(async (request) => {
             };
           }
         });
-exports.verifyGooglePlayTokenPurchase = onCall(async (request) => {
+// Google Play Console'da yalnızca faturalandırma doğrulama yetkileri olan
+// ayrı servis hesabını kullanırız. Varsayılan Compute hesabı Play Developer
+// API'de yetkili değildir ve satın alınan jetonların onaylanmasını engeller.
+exports.verifyGooglePlayTokenPurchase = onCall({
+  serviceAccount: "play-billing@usta-kapinda-e9ea7.iam.gserviceaccount.com",
+}, async (request) => {
   if (!request.auth) {
     throw new HttpsError(
       "unauthenticated",
@@ -2466,9 +2486,17 @@ const packageName = "com.ustakapinda.app";
 
     const db = admin.firestore();
 
-    const purchaseRef = db
+  const purchaseRef = db
         .collection("google_play_purchases")
         .doc(purchaseToken);
+
+    // Google'ın purchase token'ı eğik çizgi içerebildiği için doğrudan belge
+    // kimliği olarak kullanmıyoruz. Hash, geçmiş kaydını idempotent yapar.
+    const walletTransactionRef = db
+        .collection("wallet_transactions")
+        .doc(`google_play_${crypto.createHash("sha256")
+            .update(purchaseToken)
+            .digest("hex")}`);
 
     const userRef =
         db.collection("users").doc(uid);
@@ -2478,9 +2506,10 @@ const packageName = "com.ustakapinda.app";
         // Aynı Google purchase token'ının eşzamanlı iki istekte iki kez
         // bakiyeye yazılmaması için hem makbuz hem kullanıcı bu transaction
         // içinde okunur ve yazılır.
-        const [existingPurchase, userDoc] = await Promise.all([
+        const [existingPurchase, userDoc, existingWalletTransaction] = await Promise.all([
           transaction.get(purchaseRef),
           transaction.get(userRef),
+          transaction.get(walletTransactionRef),
         ]);
 
         if (existingPurchase.exists) {
@@ -2490,6 +2519,22 @@ const packageName = "com.ustakapinda.app";
               "already-exists",
               "Bu Google Play satın alması başka bir hesapta kullanılmış.",
             );
+          }
+
+          // Önceki sürüm satın alma makbuzunu saklıyor fakat cüzdan hareketi
+          // oluşturmuyordu. Aynı makbuz tekrar işlendiğinde yalnızca eksik
+          // geçmiş kaydını tamamlarız; bakiye ikinci kez artırılmaz.
+          if (!existingWalletTransaction.exists) {
+            transaction.set(walletTransactionRef, {
+              uid: uid,
+              type: "token_purchase",
+              tokens: purchaseData.tokens ?? tokenAmount,
+              description: "Google Play üzerinden jeton satın alındı.",
+              source: "google_play",
+              referenceId: purchaseData.orderId ?? purchaseRef.id,
+              createdAt: purchaseData.createdAt ??
+                  admin.firestore.FieldValue.serverTimestamp(),
+            });
           }
           return {alreadyProcessed: true};
         }
@@ -2524,6 +2569,15 @@ const packageName = "com.ustakapinda.app";
                 admin.firestore.FieldValue.serverTimestamp(),
           },
         );
+        transaction.set(walletTransactionRef, {
+          uid: uid,
+          type: "token_purchase",
+          tokens: tokenAmount,
+          description: "Google Play üzerinden jeton satın alındı.",
+          source: "google_play",
+          referenceId: purchase.orderId ?? purchaseRef.id,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
         return {alreadyProcessed: false};
       },
     );
@@ -2659,12 +2713,18 @@ exports.verifyAppStoreTokenPurchase = onCall(async (request) => {
     const purchaseRef = db
       .collection("app_store_purchases")
       .doc(transactionId);
+    const walletTransactionRef = db
+      .collection("wallet_transactions")
+      .doc(`app_store_${crypto.createHash("sha256")
+        .update(transactionId)
+        .digest("hex")}`);
     const userRef = db.collection("users").doc(request.auth.uid);
 
     const transactionResult = await db.runTransaction(async (transaction) => {
-      const [existingPurchase, userDoc] = await Promise.all([
+      const [existingPurchase, userDoc, existingWalletTransaction] = await Promise.all([
         transaction.get(purchaseRef),
         transaction.get(userRef),
+        transaction.get(walletTransactionRef),
       ]);
 
       if (existingPurchase.exists) {
@@ -2675,6 +2735,21 @@ exports.verifyAppStoreTokenPurchase = onCall(async (request) => {
             "already-exists",
             "Bu Apple satın alması başka bir hesapta kullanılmış."
           );
+        }
+
+        // Eski kayıtlar için sadece eksik hareketi tamamla; jetonu asla
+        // ikinci kez ekleme.
+        if (!existingWalletTransaction.exists) {
+          transaction.set(walletTransactionRef, {
+            uid: request.auth.uid,
+            type: "token_purchase",
+            tokens: existingData.tokens ?? tokenAmount,
+            description: "App Store üzerinden jeton satın alındı.",
+            source: "app_store",
+            referenceId: existingData.transactionId ?? transactionId,
+            createdAt: existingData.createdAt ??
+              admin.firestore.FieldValue.serverTimestamp(),
+          });
         }
 
         return { alreadyProcessed: true };
@@ -2701,6 +2776,15 @@ exports.verifyAppStoreTokenPurchase = onCall(async (request) => {
         originalTransactionId:
           matchingPurchase.original_transaction_id ?? transactionId,
         environment: verification.environment ?? null,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      transaction.set(walletTransactionRef, {
+        uid: request.auth.uid,
+        type: "token_purchase",
+        tokens: tokenAmount,
+        description: "App Store üzerinden jeton satın alındı.",
+        source: "app_store",
+        referenceId: transactionId,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 

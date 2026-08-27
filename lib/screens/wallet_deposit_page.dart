@@ -27,6 +27,7 @@ class _WalletDepositPageState extends State<WalletDepositPage> {
   int tokenBalance = 0;
   bool _storeAvailable = false;
   bool _loadingProducts = true;
+  bool _recoveringPendingPurchases = false;
   String? _storeMessage;
 
   final Map<String, ProductDetails> _products = {};
@@ -137,6 +138,13 @@ class _WalletDepositPageState extends State<WalletDepositPage> {
         return;
       }
 
+      // Google Play'de daha önce başlatılmış ancak ağ veya sunucu doğrulama
+      // hatası nedeniyle tamamlanamamış tüketilebilir satın alımlar yeniden
+      // teslim edilir. Böylece kullanıcı "bu öğe zaten sizde var" durumunda
+      // kilitli kalmaz; makbuz tekrar sunucuya doğrulatılır ve yalnızca
+      // doğrulama başarılıysa tüketim tamamlanır.
+      unawaited(_recoverPendingAndroidPurchases());
+
       final productIds = packages
           .map<String>((package) => package["productId"] as String)
           .toSet();
@@ -175,6 +183,26 @@ class _WalletDepositPageState extends State<WalletDepositPage> {
               "Mağazaya bağlanılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.";
         });
       }
+    }
+  }
+
+  Future<void> _recoverPendingAndroidPurchases() async {
+    if (_recoveringPendingPurchases ||
+        kIsWeb ||
+        defaultTargetPlatform != TargetPlatform.android) {
+      return;
+    }
+
+    _recoveringPendingPurchases = true;
+
+    try {
+      await _inAppPurchase.restorePurchases();
+    } catch (error) {
+      // Kurtarma işlemi başarısız olsa bile normal mağaza akışını kesmeyiz.
+      // Kullanıcı daha sonra sayfayı yeniden açtığında tekrar denenir.
+      debugPrint("Bekleyen Google Play satın alma kurtarma hatası: $error");
+    } finally {
+      _recoveringPendingPurchases = false;
     }
   }
 
