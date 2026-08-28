@@ -52,7 +52,7 @@ workflows:
 
       - name: Set up iOS code signing
         script: |
-          xcode-project use-profiles --project ios/Runner.xcodeproj --custom-export-options='{"testFlightInternalTestingOnly": true}'
+          xcode-project use-profiles --project ios/Runner.xcodeproj
 
       - name: Build iOS IPA
         script: |
@@ -66,5 +66,4 @@ workflows:
       app_store_connect:
         # Uses the App Store Connect key already named above.
         auth: integration
-        # Upload for internal TestFlight testing only. Beta and App Store review
-        # are intentionally not submitted by this workflow.
+        # Upload the signed App Store build. App Review submission remains manual.
