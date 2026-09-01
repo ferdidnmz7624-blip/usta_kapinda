@@ -41,6 +41,9 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  // Jeton Mağazası ilk açıldığında App Store ürünlerinin her zaman
+  // sorgulanabilmesi için StoreKit'i arayüz çizilmeden hazırla.
+  await _initializeStoreKitForIos();
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
   runApp(
@@ -61,18 +64,6 @@ Future<void> _initializeOptionalServices() async {
   } catch (error, stackTrace) {
     debugPrint('Tarih biçimi başlatılamadı: $error');
     debugPrintStack(stackTrace: stackTrace);
-  }
-
-  // StoreKit 1, Apple'ın sunucuda doğrulanabilen makbuz verisini sağlar.
-  // Satın alma eklentisi açılmadan önce çalışır, ancak uygulamanın açılışını
-  // hiçbir koşulda bekletmez.
-  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
-    try {
-      await InAppPurchaseStoreKitPlatform.enableStoreKit1();
-    } catch (error, stackTrace) {
-      debugPrint('StoreKit başlatılamadı: $error');
-      debugPrintStack(stackTrace: stackTrace);
-    }
   }
 
   try {
@@ -165,6 +156,20 @@ Future<void> _initializeOptionalServices() async {
   } catch (error, stackTrace) {
     debugPrint('Bildirim servisi başlatılamadı: $error');
     debugPrintStack(stackTrace: stackTrace);
+  }
+}
+
+/// StoreKit 1, sunucu tarafında doğrulanabilir makbuz verisini sağlar.
+/// Bu çağrı uygulama arayüzü çizilmeden biter; iOS sandbox'taki ilk ürün
+/// sorgusu böylece hazır StoreKit bağlantısını kullanır.
+Future<void> _initializeStoreKitForIos() async {
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+    try {
+      await InAppPurchaseStoreKitPlatform.enableStoreKit1();
+    } catch (error, stackTrace) {
+      debugPrint('StoreKit başlatılamadı: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
   }
 }
 

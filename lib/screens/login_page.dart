@@ -154,6 +154,20 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
+      // Apple incelemesi için tanımlanmış geçici test hesabı, e-posta OTP'si
+      // beklemeden uygulamayı inceleyebilsin. Bu alan yalnızca güvenilir
+      // yönetici tarafından Firestore'da atanır; istemci kuralları kullanıcı
+      // tarafından eklenmesine veya değiştirilmesine izin vermez.
+      if (appUser.appReviewOtpBypass) {
+        mustClearPreOtpSession = false;
+        if (!mounted) return;
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const ModeRouterPage()),
+          (_) => false,
+        );
+        return;
+      }
+
       // Parola doğru olsa bile OTP bitmeden yetkili Firebase oturumu bırakma.
       await _auth.signOut();
       mustClearPreOtpSession = false;

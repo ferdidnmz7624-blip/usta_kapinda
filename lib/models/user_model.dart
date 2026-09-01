@@ -37,6 +37,9 @@ class UserModel {
   final int tokens;
   final bool isFrozen;
   final bool isDeleting;
+  // Yalnızca yönetici tarafından geçici Apple App Review hesabına atanır.
+  // Firestore kuralları istemcinin bu alanı değiştirmesine izin vermez.
+  final bool appReviewOtpBypass;
   final DateTime? deleteAt;
   final DateTime? createdAt;
   final bool isOnline;
@@ -73,6 +76,7 @@ class UserModel {
     required this.createdAt,
     required this.isFrozen,
     required this.isDeleting,
+    required this.appReviewOtpBypass,
     required this.deleteAt,
     required this.isOnline,
     required this.lastSeen,
@@ -107,6 +111,7 @@ class UserModel {
       "tokens": tokens,
       "isFrozen": isFrozen,
       "isDeleting": isDeleting,
+      "appReviewOtpBypass": appReviewOtpBypass,
       "deleteAt": deleteAt,
       "createdAt": createdAt,
       "isOnline": isOnline,
@@ -147,6 +152,7 @@ class UserModel {
       tokens: map["tokens"] ?? 0,
       isFrozen: map["isFrozen"] ?? false,
       isDeleting: map["isDeleting"] ?? false,
+      appReviewOtpBypass: map["appReviewOtpBypass"] ?? false,
 
       deleteAt: map["deleteAt"] is Timestamp
           ? (map["deleteAt"] as Timestamp).toDate()

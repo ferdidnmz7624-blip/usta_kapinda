@@ -163,6 +163,7 @@ class _VerificationCodePageState extends State<VerificationCodePage> {
           tokens: 0,
           isFrozen: false,
           isDeleting: false,
+          appReviewOtpBypass: false,
           deleteAt: null,
           createdAt: DateTime.now(),
           isOnline: false,

@@ -165,7 +165,9 @@ SizedBox(height: 8),
                   ),
                 );
               },
-              child: Text(l10n.buy),
+              // Bu giriş, App Review ve kullanıcılar için Jeton Mağazası
+              // yönlendirmesini açıkça belirtir.
+              child: Text(l10n.buyTokens),
             ),
           ],
         ),

@@ -445,6 +445,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         tokens: user!.tokens,
         isFrozen: user!.isFrozen,
         isDeleting: user!.isDeleting,
+        appReviewOtpBypass: user!.appReviewOtpBypass,
         deleteAt: user!.deleteAt,
         createdAt: user!.createdAt,
         isOnline: user!.isOnline,

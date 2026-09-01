@@ -36,6 +36,10 @@ service cloud.firestore {
           request.resource.data.completedJobs == 0 &&
           request.resource.data.tokens == 0 &&
           request.resource.data.isFrozen == false &&
+          // Apple inceleme hesabı istisnasını yalnızca yönetici atayabilir.
+          // Yeni kayıt olan veya değiştirilmiş istemci bu alanı açamaz.
+          (!request.resource.data.keys().hasAll(["appReviewOtpBypass"]) ||
+           request.resource.data.appReviewOtpBypass == false) &&
           request.resource.data.isDeleting == false;
     }
 
