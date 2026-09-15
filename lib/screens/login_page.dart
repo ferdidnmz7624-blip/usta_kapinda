@@ -7,6 +7,8 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import '../services/user_service.dart';
 import '../services/google_auth_service.dart';
 import '../services/apple_auth_service.dart';
+import '../services/social_login_flow.dart';
+import '../models/user_model.dart';
 import 'mode_router_page.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -258,6 +260,190 @@ class _LoginPageState extends State<LoginPage> {
             debugPrint("Bildirim kaydı ertelendi: $error");
           }),
     );
+  }
+
+  Future<String?> _selectSocialAccountType() {
+    final l10n = AppLocalizations.of(context)!;
+    return showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.socialLoginRoleTitle),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () => Navigator.of(dialogContext).pop('craftsman'),
+                icon: const Icon(Icons.handyman_outlined),
+                label: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(l10n.socialLoginWorker),
+                    Text(
+                      l10n.socialLoginWorkerDescription,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => Navigator.of(dialogContext).pop('customer'),
+                icon: const Icon(Icons.business_center_outlined),
+                label: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(l10n.socialLoginEmployer),
+                    Text(
+                      l10n.socialLoginEmployerDescription,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _accountTypeOf(UserModel user) {
+    if (user.accountType == 'craftsman' ||
+        (user.craftsmanProfile && !user.customerProfile)) {
+      return 'craftsman';
+    }
+    return 'customer';
+  }
+
+  Future<void> _showRoleConflict(String existingAccountType) {
+    final l10n = AppLocalizations.of(context)!;
+    final message = existingAccountType == 'craftsman'
+        ? l10n.socialRoleConflictWorker
+        : l10n.socialRoleConflictEmployer;
+
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+        title: Text(l10n.loginFailed),
+        content: Text(message),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(l10n.backToStart),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showSocialEmailUnavailable() {
+    final l10n = AppLocalizations.of(context)!;
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.loginFailed),
+        content: Text(l10n.socialEmailUnavailable),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(l10n.backToStart),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<bool> _prepareSocialAccount({
+    required User user,
+    required String selectedAccountType,
+    required Future<void> Function() signOutProvider,
+  }) async {
+    final userService = UserService();
+    final existingUser = await userService.getUser(user.uid);
+
+    if (existingUser == null) {
+      if ((user.email?.trim() ?? '').isEmpty) {
+        await signOutProvider();
+        if (mounted) {
+          await _showSocialEmailUnavailable();
+        }
+        return false;
+      }
+
+      await userService.createSocialUserProfile(
+        user: user,
+        accountType: selectedAccountType,
+      );
+      return true;
+    }
+
+    final existingAccountType = _accountTypeOf(existingUser);
+    if (existingAccountType != selectedAccountType) {
+      await signOutProvider();
+      if (mounted) {
+        await _showRoleConflict(existingAccountType);
+      }
+      return false;
+    }
+
+    if (existingUser.activeMode != selectedAccountType) {
+      await userService.changeActiveMode(selectedAccountType);
+    }
+    return true;
+  }
+
+  Future<void> _continueSocialLogin({
+    required String selectedAccountType,
+    required Future<UserCredential?> Function() authenticate,
+    required Future<void> Function() signOutProvider,
+  }) async {
+    final l10n = AppLocalizations.of(context)!;
+    SocialLoginFlow.begin();
+    if (mounted) {
+      setState(() => isLoading = true);
+    }
+
+    try {
+      final credential = await authenticate();
+      final user = credential?.user ?? _auth.currentUser;
+      if (user == null) return;
+
+      final canContinue = await _prepareSocialAccount(
+        user: user,
+        selectedAccountType: selectedAccountType,
+        signOutProvider: signOutProvider,
+      );
+      if (!canContinue || !mounted) return;
+
+      _saveFcmTokenInBackground(user.uid);
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const ModeRouterPage()),
+        (_) => false,
+      );
+    } catch (_) {
+      // Profil denetimi sırasında hata oluşursa yetkisiz/yarım bir sosyal
+      // oturum bırakma. Kullanıcı başlangıçtaki giriş ekranına döner.
+      await signOutProvider();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.loginFailed)),
+      );
+    } finally {
+      SocialLoginFlow.finish();
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
+    }
   }
 
   Future<void> resetPassword() async {
@@ -637,28 +823,20 @@ class _LoginPageState extends State<LoginPage> {
                 width: double.infinity,
                 height: 56,
                 child: OutlinedButton.icon(
-                  onPressed: () async {
-                    try {
-                      final credential = await _googleAuth.signInWithGoogle();
-
-                      if (credential == null) return;
-                      _saveFcmTokenInBackground(
-                        FirebaseAuth.instance.currentUser!.uid,
-                      );
-                      if (!mounted) return;
-
-                      Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute(
-                          builder: (_) => const ModeRouterPage(),
-                        ),
-                        (route) => false,
-                      );
-                    } catch (e) {
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(SnackBar(content: Text(e.toString())));
-                    }
-                  },
+                  onPressed: isLoading
+                      ? null
+                      : () async {
+                          final accountType = await _selectSocialAccountType();
+                          if (accountType == null || !mounted) return;
+                          await _continueSocialLogin(
+                            selectedAccountType: accountType,
+                            authenticate: () => _googleAuth.signInWithGoogle(
+                              createProfileIfMissing: false,
+                              forceAccountPicker: true,
+                            ),
+                            signOutProvider: _googleAuth.signOut,
+                          );
+                        },
                   icon: SvgPicture.asset(
                     "assets/icons/google.svg",
                     width: 24,
@@ -687,29 +865,19 @@ class _LoginPageState extends State<LoginPage> {
                 width: double.infinity,
                 height: 56,
                 child: OutlinedButton.icon(
-                  onPressed: () async {
-                    try {
-                      final credential = await _appleAuth.signInWithApple();
-
-                      if (credential == null) return;
-                      _saveFcmTokenInBackground(
-                        FirebaseAuth.instance.currentUser!.uid,
-                      );
-                      if (!mounted) return;
-
-                      Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute(
-                          builder: (_) => const ModeRouterPage(),
-                        ),
-                        (route) => false,
-                      );
-                    } catch (e) {
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(SnackBar(content: Text(e.toString())));
-                    }
-                  },
+                  onPressed: isLoading
+                      ? null
+                      : () async {
+                          final accountType = await _selectSocialAccountType();
+                          if (accountType == null || !mounted) return;
+                          await _continueSocialLogin(
+                            selectedAccountType: accountType,
+                            authenticate: () => _appleAuth.signInWithApple(
+                              createProfileIfMissing: false,
+                            ),
+                            signOutProvider: _appleAuth.signOut,
+                          );
+                        },
                   icon: const Icon(Icons.apple, size: 28),
                   label: Text(
                     AppLocalizations.of(context)!.loginWithApple,

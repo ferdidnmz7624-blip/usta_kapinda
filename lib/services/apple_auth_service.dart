@@ -27,7 +27,9 @@ class AppleAuthService {
     return digest.toString();
   }
 
-  Future<UserCredential?> signInWithApple() async {
+  Future<UserCredential?> signInWithApple({
+    bool createProfileIfMissing = true,
+  }) async {
     try {
       final rawNonce = _generateNonce();
       final hashedNonce = _sha256(rawNonce);
@@ -64,7 +66,7 @@ class AppleAuthService {
 
         final snapshot = await doc.get();
 
-        if (!snapshot.exists) {
+        if (!snapshot.exists && createProfileIfMissing) {
           final firstName = appleCredential.givenName ?? '';
           final lastName = appleCredential.familyName ?? '';
 

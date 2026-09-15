@@ -1416,4 +1416,35 @@ class AppLocalizationsTr extends AppLocalizations {
   @override
   String get tiktokMeasurementNotice =>
       'Reklam Ölçümü (TikTok)\n\nUygulama, reklam kampanyalarının uygulama yükleme, açılış ve ikinci gün geri dönüş üzerindeki etkisini ölçmek için TikTok App Events SDK kullanabilir. Bu ölçüm için reklam kimliği, e-posta, telefon numarası, mesaj içeriği, profil verisi veya kesin konum TikTok\'a gönderilmez. TikTok, ölçüm hizmetini yürütmek için sınırlı teknik cihaz ve uygulama etkinliği verilerini kendi gizlilik politikasına uygun şekilde işleyebilir.';
+
+  @override
+  String get socialLoginRoleTitle => 'Nasıl devam etmek istersiniz?';
+
+  @override
+  String get socialLoginWorker => 'Çalışanım';
+
+  @override
+  String get socialLoginEmployer => 'İşverenim';
+
+  @override
+  String get socialLoginWorkerDescription => 'Usta olarak iş bulmak istiyorum';
+
+  @override
+  String get socialLoginEmployerDescription =>
+      'İşveren olarak iş ilanı vermek istiyorum';
+
+  @override
+  String get socialRoleConflictWorker =>
+      'Bu e-posta adresi ile çalışan hesabı bulunuyor. Başka bir hesap seçin.';
+
+  @override
+  String get socialRoleConflictEmployer =>
+      'Bu e-posta adresi ile işveren hesabı bulunuyor. Başka bir hesap seçin.';
+
+  @override
+  String get backToStart => 'Başa dön';
+
+  @override
+  String get socialEmailUnavailable =>
+      'Seçilen hesap bir e-posta adresi vermedi. Başka bir hesap seçin.';
 }

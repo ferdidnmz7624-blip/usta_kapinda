@@ -1412,4 +1412,35 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get tiktokMeasurementNotice =>
       'قياس الإعلانات (TikTok)\n\nقد يستخدم التطبيق TikTok App Events SDK فقط لقياس أثر الحملات الإعلانية على عمليات التثبيت وفتح التطبيق والعودة في اليوم الثاني. لا يتم إرسال معرّف إعلاني أو بريد إلكتروني أو رقم هاتف أو محتوى رسائل أو بيانات ملف شخصي أو موقع دقيق إلى TikTok لهذا القياس. قد تعالج TikTok بيانات تقنية محدودة عن الجهاز وأحداث التطبيق وفقًا لسياسة الخصوصية الخاصة بها لتقديم خدمة القياس هذه.';
+
+  @override
+  String get socialLoginRoleTitle => 'كيف تريد المتابعة؟';
+
+  @override
+  String get socialLoginWorker => 'أنا عامل';
+
+  @override
+  String get socialLoginEmployer => 'أنا صاحب عمل';
+
+  @override
+  String get socialLoginWorkerDescription => 'أريد العثور على عمل كمحترف';
+
+  @override
+  String get socialLoginEmployerDescription =>
+      'أريد نشر وظائف بصفتي صاحب عمل';
+
+  @override
+  String get socialRoleConflictWorker =>
+      'يوجد حساب عامل مرتبط بعنوان البريد الإلكتروني هذا. يرجى اختيار حساب آخر.';
+
+  @override
+  String get socialRoleConflictEmployer =>
+      'يوجد حساب صاحب عمل مرتبط بعنوان البريد الإلكتروني هذا. يرجى اختيار حساب آخر.';
+
+  @override
+  String get backToStart => 'العودة إلى البداية';
+
+  @override
+  String get socialEmailUnavailable =>
+      'لم يوفّر الحساب المحدد عنوان بريد إلكتروني. يرجى اختيار حساب آخر.';
 }

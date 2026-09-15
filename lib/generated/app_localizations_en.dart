@@ -1421,4 +1421,36 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get tiktokMeasurementNotice =>
       'Advertising Measurement (TikTok)\n\nThe app may use the TikTok App Events SDK solely to measure the impact of ad campaigns on installs, app launches, and second-day retention. No advertising identifier, email address, phone number, message content, profile data, or precise location is sent to TikTok for this measurement. TikTok may process limited technical device and app-event data in accordance with its privacy policy to provide this measurement service.';
+
+  @override
+  String get socialLoginRoleTitle => 'How would you like to continue?';
+
+  @override
+  String get socialLoginWorker => 'I am a Worker';
+
+  @override
+  String get socialLoginEmployer => 'I am an Employer';
+
+  @override
+  String get socialLoginWorkerDescription =>
+      'I want to find work as a professional';
+
+  @override
+  String get socialLoginEmployerDescription =>
+      'I want to post jobs as an employer';
+
+  @override
+  String get socialRoleConflictWorker =>
+      'A worker account exists for this email address. Please choose another account.';
+
+  @override
+  String get socialRoleConflictEmployer =>
+      'An employer account exists for this email address. Please choose another account.';
+
+  @override
+  String get backToStart => 'Back to start';
+
+  @override
+  String get socialEmailUnavailable =>
+      'The selected account did not provide an email address. Please choose another account.';
 }

@@ -1430,4 +1430,36 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get tiktokMeasurementNotice =>
       'Рекламные измерения (TikTok)\n\nПриложение может использовать TikTok App Events SDK исключительно для измерения влияния рекламных кампаний на установки, запуски приложения и возврат на второй день. Для этих измерений TikTok не получает рекламный идентификатор, адрес электронной почты, номер телефона, содержимое сообщений, данные профиля или точное местоположение. TikTok может обрабатывать ограниченные технические данные об устройстве и событиях приложения в соответствии со своей политикой конфиденциальности для предоставления этой услуги измерений.';
+
+  @override
+  String get socialLoginRoleTitle => 'Как вы хотите продолжить?';
+
+  @override
+  String get socialLoginWorker => 'Я работник';
+
+  @override
+  String get socialLoginEmployer => 'Я работодатель';
+
+  @override
+  String get socialLoginWorkerDescription =>
+      'Я хочу находить работу как специалист';
+
+  @override
+  String get socialLoginEmployerDescription =>
+      'Я хочу размещать задания как работодатель';
+
+  @override
+  String get socialRoleConflictWorker =>
+      'Для этого адреса электронной почты уже существует аккаунт работника. Выберите другой аккаунт.';
+
+  @override
+  String get socialRoleConflictEmployer =>
+      'Для этого адреса электронной почты уже существует аккаунт работодателя. Выберите другой аккаунт.';
+
+  @override
+  String get backToStart => 'В начало';
+
+  @override
+  String get socialEmailUnavailable =>
+      'Выбранный аккаунт не предоставил адрес электронной почты. Выберите другой аккаунт.';
 }

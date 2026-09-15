@@ -540,5 +540,14 @@
 "tokensAdded": "{tokens} jeton hesabınıza eklendi.",
 
   "language": "Dil",
-  "tiktokMeasurementNotice": "Reklam Ölçümü (TikTok)\n\nUygulama, reklam kampanyalarının uygulama yükleme, açılış ve ikinci gün geri dönüş üzerindeki etkisini ölçmek için TikTok App Events SDK kullanabilir. Bu ölçüm için reklam kimliği, e-posta, telefon numarası, mesaj içeriği, profil verisi veya kesin konum TikTok'a gönderilmez. TikTok, ölçüm hizmetini yürütmek için sınırlı teknik cihaz ve uygulama etkinliği verilerini kendi gizlilik politikasına uygun şekilde işleyebilir."
+  "tiktokMeasurementNotice": "Reklam Ölçümü (TikTok)\n\nUygulama, reklam kampanyalarının uygulama yükleme, açılış ve ikinci gün geri dönüş üzerindeki etkisini ölçmek için TikTok App Events SDK kullanabilir. Bu ölçüm için reklam kimliği, e-posta, telefon numarası, mesaj içeriği, profil verisi veya kesin konum TikTok'a gönderilmez. TikTok, ölçüm hizmetini yürütmek için sınırlı teknik cihaz ve uygulama etkinliği verilerini kendi gizlilik politikasına uygun şekilde işleyebilir.",
+  "socialLoginRoleTitle": "Nasıl devam etmek istersiniz?",
+  "socialLoginWorker": "Çalışanım",
+  "socialLoginEmployer": "İşverenim",
+  "socialLoginWorkerDescription": "Usta olarak iş bulmak istiyorum",
+  "socialLoginEmployerDescription": "İşveren olarak iş ilanı vermek istiyorum",
+  "socialRoleConflictWorker": "Bu e-posta adresi ile çalışan hesabı bulunuyor. Başka bir hesap seçin.",
+  "socialRoleConflictEmployer": "Bu e-posta adresi ile işveren hesabı bulunuyor. Başka bir hesap seçin.",
+  "backToStart": "Başa dön",
+  "socialEmailUnavailable": "Seçilen hesap bir e-posta adresi vermedi. Başka bir hesap seçin."
 }

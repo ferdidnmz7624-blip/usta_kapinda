@@ -1452,4 +1452,36 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get tiktokMeasurementNotice =>
       'Werbemessung (TikTok)\n\nDie App kann das TikTok App Events SDK ausschließlich verwenden, um die Wirkung von Werbekampagnen auf Installationen, App-Starts und die Rückkehr am zweiten Tag zu messen. Für diese Messung werden keine Werbe-ID, E-Mail-Adresse, Telefonnummer, Nachrichteninhalte, Profildaten oder präzisen Standortdaten an TikTok gesendet. TikTok kann begrenzte technische Geräte- und App-Ereignisdaten gemäß seiner Datenschutzrichtlinie verarbeiten, um diesen Messdienst bereitzustellen.';
+
+  @override
+  String get socialLoginRoleTitle => 'Wie möchten Sie fortfahren?';
+
+  @override
+  String get socialLoginWorker => 'Ich bin Arbeitnehmer';
+
+  @override
+  String get socialLoginEmployer => 'Ich bin Arbeitgeber';
+
+  @override
+  String get socialLoginWorkerDescription =>
+      'Ich möchte als Fachkraft Arbeit finden';
+
+  @override
+  String get socialLoginEmployerDescription =>
+      'Ich möchte als Arbeitgeber Aufträge veröffentlichen';
+
+  @override
+  String get socialRoleConflictWorker =>
+      'Für diese E-Mail-Adresse gibt es bereits ein Arbeitnehmerkonto. Bitte wählen Sie ein anderes Konto.';
+
+  @override
+  String get socialRoleConflictEmployer =>
+      'Für diese E-Mail-Adresse gibt es bereits ein Arbeitgeberkonto. Bitte wählen Sie ein anderes Konto.';
+
+  @override
+  String get backToStart => 'Zurück zum Anfang';
+
+  @override
+  String get socialEmailUnavailable =>
+      'Das ausgewählte Konto hat keine E-Mail-Adresse bereitgestellt. Bitte wählen Sie ein anderes Konto.';
 }

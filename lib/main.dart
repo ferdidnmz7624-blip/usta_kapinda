@@ -18,6 +18,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'generated/app_localizations.dart';
 import 'package:provider/provider.dart';
 import 'services/user_service.dart';
+import 'services/social_login_flow.dart';
 import 'providers/language_provider.dart';
 import 'screens/kvkk_page.dart';
 import 'screens/terms_page.dart';
@@ -277,20 +278,25 @@ class UstaKapindaApp extends StatelessWidget {
             "/jobs": (context) => const JobsPage(),
             "/job-post": (context) => const JobPostPage(),
           },
-          home: StreamBuilder<User?>(
-            stream: FirebaseAuth.instance.authStateChanges(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Scaffold(
-                  body: Center(child: CircularProgressIndicator()),
-                );
-              }
+          home: ValueListenableBuilder<bool>(
+            valueListenable: SocialLoginFlow.isInProgress,
+            builder: (context, socialLoginInProgress, _) {
+              return StreamBuilder<User?>(
+                stream: FirebaseAuth.instance.authStateChanges(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Scaffold(
+                      body: Center(child: CircularProgressIndicator()),
+                    );
+                  }
 
-              if (snapshot.hasData) {
-                return const ModeRouterPage();
-              }
+                  if (snapshot.hasData && !socialLoginInProgress) {
+                    return const ModeRouterPage();
+                  }
 
-              return const LoginPage();
+                  return const LoginPage();
+                },
+              );
             },
           ),
         );

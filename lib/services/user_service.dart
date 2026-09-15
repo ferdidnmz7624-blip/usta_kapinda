@@ -24,6 +24,55 @@ class UserService {
     return UserModel.fromMap(doc.data()!);
   }
 
+  /// Sosyal girişte rol, hesap seçilmeden önce kullanıcı belgesine
+  /// varsayılan olarak yazılmaz. Bu metod seçilen role göre ilk profili
+  /// güvenli başlangıç değerleriyle oluşturur.
+  Future<void> createSocialUserProfile({
+    required User user,
+    required String accountType,
+  }) async {
+    if (accountType != 'customer' && accountType != 'craftsman') {
+      throw ArgumentError.value(accountType, 'accountType');
+    }
+
+    final email = user.email?.trim() ?? '';
+    if (email.isEmpty) {
+      throw StateError('social-email-unavailable');
+    }
+
+    final isCustomer = accountType == 'customer';
+    await _firestore.collection('users').doc(user.uid).set({
+      'uid': user.uid,
+      'firstName': user.displayName?.trim() ?? '',
+      'lastName': '',
+      'email': email,
+      'phone': user.phoneNumber ?? '',
+      'profilePhoto': user.photoURL ?? '',
+      'accountType': accountType,
+      'activeMode': accountType,
+      'customerProfile': isCustomer,
+      'craftsmanProfile': !isCustomer,
+      'linkedCustomerUid': '',
+      'linkedCraftsmanUid': '',
+      'linkedCustomerEmail': '',
+      'linkedCraftsmanEmail': '',
+      'rating': 5.0,
+      'completedJobs': 0,
+      'tokens': 0,
+      'isFrozen': false,
+      'isDeleting': false,
+      'experience': 0,
+      'professions': <String>[],
+      'about': '',
+      'city': '',
+      'district': '',
+      'neighborhood': '',
+      'address': '',
+      'isOnline': false,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   Future<void> updateUser(UserModel user) async {
     await _firestore.collection("users").doc(user.uid).update({
       "firstName": user.firstName,

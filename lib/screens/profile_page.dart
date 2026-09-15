@@ -22,6 +22,7 @@ import 'wallet_deposit_page.dart';
 import '../generated/app_localizations.dart';
 import 'comments_page.dart';
 import 'favorites_page.dart';
+import '../services/store_review_service.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -555,8 +556,13 @@ const SizedBox(height: 25),
     icon: Icons.star_rate_rounded,
     color: Colors.amber,
     title: l10n.rateUs,
-    onTap: () {
-      // Daha sonra Play Store / App Store yönlendirmesi eklenecek.
+    onTap: () async {
+      final opened = await StoreReviewService.openReviewPage();
+      if (!opened && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.error)),
+        );
+      }
     },
   ),
   menuTile(
